@@ -24,6 +24,7 @@ import com.example.model.HistogramData
 import com.example.model.HslChannelAdjustment
 import com.example.model.HslColorChannel
 import com.example.model.HslState
+import com.example.model.BlemishSuggestion
 import com.example.model.RetouchStroke
 import com.example.model.RetouchType
 import com.example.model.SavedImageInfo
@@ -34,6 +35,7 @@ import com.example.model.UpdateStatus
 import com.example.model.UserSettings
 import com.example.processing.AppUpdateChecker
 import com.example.processing.BitmapProcessor
+import com.example.processing.BlemishDetector
 import com.example.processing.ImageExporter
 import com.example.util.AppStrings
 import kotlinx.coroutines.Dispatchers
@@ -100,6 +102,8 @@ data class EditorUiState(
     val texturePreserve: Float = 0.30f,
     val isEraser: Boolean = false,
     val recentRetouchPoint: StrokePoint? = null,
+    val suggestedBlemishes: List<BlemishSuggestion> = emptyList(),
+    val blemishSensitivity: Float = 0.65f,
     // Compare state
     val isComparing: Boolean = false,
     val isSplitView: Boolean = false,
@@ -472,6 +476,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 selectedCropRatio = CropAspectRatio.FREE,
                 pendingCropRect = CropRect(),
                 activeFrame = FrameStyle.NONE,
+                suggestedBlemishes = emptyList(),
                 canUndo = false,
                 canRedo = false,
                 currentScreen = if (autoNavigate) AppScreen.EDITOR else it.currentScreen,
@@ -551,6 +556,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 selectedCropRatio = CropAspectRatio.FREE,
                 pendingCropRect = CropRect(),
                 activeFrame = previous.activeFrame,
+                suggestedBlemishes = emptyList(),
                 canUndo = undoStack.isNotEmpty(),
                 canRedo = true
             )
@@ -595,6 +601,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 selectedCropRatio = CropAspectRatio.FREE,
                 pendingCropRect = CropRect(),
                 activeFrame = next.activeFrame,
+                suggestedBlemishes = emptyList(),
                 canUndo = true,
                 canRedo = redoStack.isNotEmpty()
             )
@@ -723,6 +730,81 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update { it.copy(texturePreserve = preserve.coerceIn(0f, 0.75f)) }
     }
 
+    fun setBlemishSensitivity(sensitivity: Float) {
+        _uiState.update { it.copy(blemishSensitivity = sensitivity.coerceIn(0f, 1f)) }
+    }
+
+    fun clearBlemishSuggestions() {
+        _uiState.update { it.copy(suggestedBlemishes = emptyList()) }
+    }
+
+    fun detectBlemishes() {
+        val lang = _uiState.value.settings.appLanguage
+        val sensitivity = _uiState.value.blemishSensitivity
+        viewModelScope.launch {
+            bitmapMutex.withLock {
+                val working = _uiState.value.workingBitmap ?: return@withLock
+                _uiState.update { it.copy(isProcessing = true) }
+                val suggestions = withContext(Dispatchers.Default) {
+                    BlemishDetector.detectBlemishes(working, sensitivity = sensitivity)
+                }
+                _uiState.update {
+                    it.copy(
+                        activeTab = EditorTab.RETOUCH,
+                        activeRetouchTool = RetouchType.BLEMISH,
+                        suggestedBlemishes = suggestions,
+                        isProcessing = false,
+                        statusMessage = AppStrings.statusBlemishesDetected(suggestions.size, lang)
+                    )
+                }
+            }
+        }
+    }
+
+    fun healAllSuggestedBlemishes() {
+        val suggestions = _uiState.value.suggestedBlemishes
+        if (suggestions.isEmpty()) return
+        val lang = _uiState.value.settings.appLanguage
+        val currentRadius = _uiState.value.brushRadius
+        val currentIntensity = _uiState.value.brushIntensity
+        continuousEditSnapshotted = false
+
+        viewModelScope.launch {
+            bitmapMutex.withLock {
+                val currentWorking = _uiState.value.workingBitmap ?: return@withLock
+                pushHistory(isBitmapMutated = true)
+                _uiState.update { it.copy(isProcessing = true) }
+
+                val healed = withContext(Dispatchers.Default) {
+                    val copy = currentWorking.copy(Bitmap.Config.ARGB_8888, true)
+                    for (spot in suggestions) {
+                        val spotRadius = maxOf(currentRadius * 0.85f, (spot.normRadius * 400f * 1.35f).coerceIn(16f, 60f))
+                        BitmapProcessor.applyRetouchStroke(
+                            copy,
+                            RetouchStroke(
+                                type = RetouchType.BLEMISH,
+                                points = listOf(StrokePoint(spot.normX, spot.normY)),
+                                radius = spotRadius,
+                                intensity = currentIntensity.coerceAtLeast(0.85f)
+                            )
+                        )
+                    }
+                    copy
+                }
+
+                _uiState.update {
+                    it.copy(
+                        workingBitmap = healed,
+                        suggestedBlemishes = emptyList(),
+                        isProcessing = false,
+                        statusMessage = AppStrings.statusAllBlemishesHealed(suggestions.size, lang)
+                    )
+                }
+                triggerRender()
+            }
+        }
+    }
+
     fun toggleEraser() {
         _uiState.update { it.copy(isEraser = !it.isEraser) }
     }
@@ -740,13 +822,50 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 val currentWorking = _uiState.value.workingBitmap ?: return@withLock
                 pushHistory(isBitmapMutated = true)
 
+                val currentState = _uiState.value
+                val activeSuggestions = currentState.suggestedBlemishes
+                var effectivePoints = points
+                var effectiveRadius = currentState.brushRadius
+                var remainingSuggestions = activeSuggestions
+
+                if (currentState.activeRetouchTool == RetouchType.BLEMISH && activeSuggestions.isNotEmpty()) {
+                    // If user tapped directly on a suggested blemish ring, snap cleanly to its center
+                    if (points.size <= 3) {
+                        val tap = points.first()
+                        val hit = activeSuggestions.minByOrNull { s ->
+                            val dx = s.normX - tap.normX
+                            val dy = s.normY - tap.normY
+                            dx * dx + dy * dy
+                        }
+                        if (hit != null) {
+                            val hitTol = maxOf(hit.normRadius * 1.8f, 0.045f)
+                            val dx = hit.normX - tap.normX
+                            val dy = hit.normY - tap.normY
+                            if (dx * dx + dy * dy <= hitTol * hitTol) {
+                                effectivePoints = listOf(StrokePoint(hit.normX, hit.normY))
+                                effectiveRadius = maxOf(currentState.brushRadius, (hit.normRadius * 400f * 1.35f).coerceIn(16f, 60f))
+                            }
+                        }
+                    }
+
+                    val brushNormRadius = (effectiveRadius / 400f).coerceAtLeast(0.03f)
+                    remainingSuggestions = activeSuggestions.filterNot { s ->
+                        effectivePoints.any { pt ->
+                            val tol = maxOf(s.normRadius * 1.4f, brushNormRadius)
+                            val dx = s.normX - pt.normX
+                            val dy = s.normY - pt.normY
+                            dx * dx + dy * dy <= tol * tol
+                        }
+                    }
+                }
+
                 val stroke = RetouchStroke(
-                    type = _uiState.value.activeRetouchTool,
-                    points = points,
-                    radius = _uiState.value.brushRadius,
-                    intensity = _uiState.value.brushIntensity,
-                    texturePreserve = _uiState.value.texturePreserve,
-                    isEraser = _uiState.value.isEraser
+                    type = currentState.activeRetouchTool,
+                    points = effectivePoints,
+                    radius = effectiveRadius,
+                    intensity = currentState.brushIntensity,
+                    texturePreserve = currentState.texturePreserve,
+                    isEraser = currentState.isEraser
                 )
 
                 val updatedWorking = withContext(Dispatchers.Default) {
@@ -758,7 +877,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 _uiState.update {
                     it.copy(
                         workingBitmap = updatedWorking,
-                        recentRetouchPoint = points.lastOrNull(),
+                        recentRetouchPoint = effectivePoints.lastOrNull(),
+                        suggestedBlemishes = remainingSuggestions,
                         statusMessage = AppStrings.statusRetouchApplied(stroke.type, lang)
                     )
                 }
@@ -791,6 +911,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 _uiState.update {
                     it.copy(
                         workingBitmap = smoothed,
+                        suggestedBlemishes = emptyList(),
                         isProcessing = false,
                         statusMessage = AppStrings.statusAutoSmoothApplied(lang)
                     )
@@ -875,6 +996,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                         transform = TransformState(),
                         selectedCropRatio = CropAspectRatio.FREE,
                         pendingCropRect = CropRect(),
+                        suggestedBlemishes = emptyList(),
                         isProcessing = false,
                         statusMessage = AppStrings.statusCropApplied(lang)
                     )
@@ -934,6 +1056,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                         transform = TransformState(),
                         selectedCropRatio = CropAspectRatio.FREE,
                         pendingCropRect = CropRect(),
+                        suggestedBlemishes = emptyList(),
                         isProcessing = false,
                         statusMessage = AppStrings.statusTransformApplied(lang)
                     )

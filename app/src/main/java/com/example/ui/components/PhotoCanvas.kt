@@ -5,8 +5,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -24,7 +27,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.ZoomOut
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,6 +64,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.AppLanguage
+import com.example.model.BlemishSuggestion
 import com.example.model.CropRect
 import com.example.model.HistogramData
 import com.example.model.RetouchType
@@ -64,7 +75,11 @@ import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.StudioBackground
 import com.example.ui.theme.StudioBorder
 import com.example.ui.theme.StudioSurface
+import com.example.ui.theme.TextDisabled
+import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.util.AppStrings
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -84,6 +99,8 @@ fun PhotoCanvas(
     isCropMode: Boolean = false,
     cropRect: CropRect = CropRect(),
     lockedCropRatio: Float? = null,
+    suggestedBlemishes: List<BlemishSuggestion> = emptyList(),
+    lang: AppLanguage = AppLanguage.SYSTEM,
     onCropRectChanged: (CropRect) -> Unit = {},
     onSplitRatioChanged: (Float) -> Unit,
     onRetouchStroke: (List<StrokePoint>) -> Unit,
@@ -126,15 +143,27 @@ fun PhotoCanvas(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(isRetouchMode, isSplitView, isCropMode) {
+                    .pointerInput(isRetouchMode, isSplitView, isCropMode, renderW, renderH) {
                         if (!isRetouchMode && !isSplitView && !isCropMode) {
                             detectTapGestures(
-                                onDoubleTap = {
+                                onDoubleTap = { tapPos ->
                                     if (scale > 1.05f) {
                                         scale = 1f
                                         offset = Offset.Zero
                                     } else {
-                                        scale = 2.5f
+                                        val targetScale = 2.5f
+                                        val cx = containerWidth / 2f
+                                        val cy = containerHeight / 2f
+                                        val focalShift = Offset(cx - tapPos.x, cy - tapPos.y) * (targetScale - 1f)
+                                        scale = targetScale
+                                        offset = clampCanvasOffset(
+                                            candidate = focalShift,
+                                            targetScale = targetScale,
+                                            renderW = renderW,
+                                            renderH = renderH,
+                                            containerW = containerWidth,
+                                            containerH = containerHeight
+                                        )
                                     }
                                 }
                             )
@@ -143,16 +172,20 @@ fun PhotoCanvas(
                     .pointerInput(isRetouchMode, isSplitView, isCropMode, renderW, renderH) {
                         if (!isRetouchMode && !isSplitView && !isCropMode) {
                             detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(1f, 5f)
-                                if (scale <= 1.01f) {
+                                val nextScale = (scale * zoom).coerceIn(MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM)
+                                if (nextScale <= 1.01f) {
                                     scale = 1f
                                     offset = Offset.Zero
                                 } else {
-                                    val maxOffsetX = ((renderW * scale - containerWidth).coerceAtLeast(renderW * (scale - 1f))) / 2f
-                                    val maxOffsetY = ((renderH * scale - containerHeight).coerceAtLeast(renderH * (scale - 1f))) / 2f
-                                    offset = Offset(
-                                        (offset.x + pan.x).coerceIn(-maxOffsetX, maxOffsetX),
-                                        (offset.y + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                    val ratio = if (scale > 0.01f) nextScale / scale else 1f
+                                    scale = nextScale
+                                    offset = clampCanvasOffset(
+                                        candidate = offset * ratio + pan,
+                                        targetScale = nextScale,
+                                        renderW = renderW,
+                                        renderH = renderH,
+                                        containerW = containerWidth,
+                                        containerH = containerHeight
                                     )
                                 }
                             }
@@ -160,7 +193,7 @@ fun PhotoCanvas(
                     }
                     .pointerInput(isRetouchMode, isSplitView, isCropMode, renderW, renderH, imgLeft, imgTop) {
                         if (isRetouchMode && !isSplitView && !isCropMode) {
-                            // Supports BOTH instant single-tap (Blemish Heal) AND continuous drag brushing
+                            // Supports 1-finger tap/drag retouching AND 2-finger pinch-to-zoom + pan
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 down.consume()
@@ -173,6 +206,7 @@ fun PhotoCanvas(
                                     return Offset(contentX, contentY)
                                 }
 
+                                var isMultiTouchZoom = false
                                 val startContent = mapScreenToImagePoint(down.position)
                                 activeTouchPos = startContent
                                 currentPoints.clear()
@@ -185,23 +219,54 @@ fun PhotoCanvas(
 
                                 while (true) {
                                     val event = awaitPointerEvent(PointerEventPass.Main)
-                                    val change = event.changes.firstOrNull() ?: break
-                                    if (!change.pressed) {
-                                        change.consume()
+                                    val activeChanges = event.changes.filter { it.pressed }
+                                    if (activeChanges.isEmpty()) {
+                                        event.changes.forEach { it.consume() }
                                         break
                                     }
-                                    change.consume()
-                                    val contentPos = mapScreenToImagePoint(change.position)
-                                    activeTouchPos = contentPos
-                                    currentPoints.add(
-                                        StrokePoint(
-                                            normX = ((contentPos.x - imgLeft) / renderW).coerceIn(0f, 1f),
-                                            normY = ((contentPos.y - imgTop) / renderH).coerceIn(0f, 1f)
+
+                                    if (activeChanges.size >= 2) {
+                                        if (!isMultiTouchZoom) {
+                                            isMultiTouchZoom = true
+                                            currentPoints.clear()
+                                            activeTouchPos = null
+                                        }
+                                        val zoomChange = event.calculateZoom()
+                                        val panChange = event.calculatePan()
+                                        val nextScale = (scale * zoomChange).coerceIn(MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM)
+                                        if (nextScale <= 1.01f) {
+                                            scale = 1f
+                                            offset = Offset.Zero
+                                        } else {
+                                            val ratio = if (scale > 0.01f) nextScale / scale else 1f
+                                            scale = nextScale
+                                            offset = clampCanvasOffset(
+                                                candidate = offset * ratio + panChange,
+                                                targetScale = nextScale,
+                                                renderW = renderW,
+                                                renderH = renderH,
+                                                containerW = containerWidth,
+                                                containerH = containerHeight
+                                            )
+                                        }
+                                        event.changes.forEach { it.consume() }
+                                    } else if (!isMultiTouchZoom) {
+                                        val change = activeChanges.first()
+                                        change.consume()
+                                        val contentPos = mapScreenToImagePoint(change.position)
+                                        activeTouchPos = contentPos
+                                        currentPoints.add(
+                                            StrokePoint(
+                                                normX = ((contentPos.x - imgLeft) / renderW).coerceIn(0f, 1f),
+                                                normY = ((contentPos.y - imgTop) / renderH).coerceIn(0f, 1f)
+                                            )
                                         )
-                                    )
+                                    } else {
+                                        activeChanges.forEach { it.consume() }
+                                    }
                                 }
 
-                                if (currentPoints.isNotEmpty()) {
+                                if (!isMultiTouchZoom && currentPoints.isNotEmpty()) {
                                     onRetouchStroke(currentPoints.toList())
                                 }
                                 currentPoints.clear()
@@ -310,6 +375,54 @@ fun PhotoCanvas(
                     }
                 }
 
+                // Automated Blemish Detection suggestion markers
+                if (isRetouchMode &&
+                    retouchType == RetouchType.BLEMISH &&
+                    !isSplitView &&
+                    !isComparing &&
+                    suggestedBlemishes.isNotEmpty()
+                ) {
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("blemish_suggestions_overlay")
+                    ) {
+                        val minRenderDim = min(renderW, renderH)
+                        val strokeW = 1.8.dp.toPx()
+                        val minTargetPx = 10.dp.toPx()
+                        val maxTargetPx = 30.dp.toPx()
+
+                        for (spot in suggestedBlemishes) {
+                            val cx = imgLeft + spot.normX * renderW
+                            val cy = imgTop + spot.normY * renderH
+                            val targetR = (spot.normRadius * minRenderDim).coerceIn(minTargetPx, maxTargetPx)
+
+                            drawCircle(
+                                color = AccentAmber.copy(alpha = 0.14f),
+                                radius = targetR,
+                                center = Offset(cx, cy)
+                            )
+                            drawCircle(
+                                color = AccentAmber.copy(alpha = 0.92f),
+                                radius = targetR,
+                                center = Offset(cx, cy),
+                                style = Stroke(width = strokeW)
+                            )
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.75f),
+                                radius = (targetR + 2.dp.toPx()),
+                                center = Offset(cx, cy),
+                                style = Stroke(width = 0.9.dp.toPx())
+                            )
+                            drawCircle(
+                                color = AccentCyan,
+                                radius = 2.dp.toPx(),
+                                center = Offset(cx, cy)
+                            )
+                        }
+                    }
+                }
+
                 // Brush cursor ring indicator for Retouch mode
                 if (isRetouchMode && activeTouchPos != null) {
                     val pos = activeTouchPos!!
@@ -392,6 +505,32 @@ fun PhotoCanvas(
             }
         }
 
+        // Detected blemish suggestion count pill
+        if (isRetouchMode &&
+            retouchType == RetouchType.BLEMISH &&
+            !isSplitView &&
+            !isComparing &&
+            suggestedBlemishes.isNotEmpty()
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(StudioSurface.copy(alpha = 0.88f))
+                    .border(1.dp, AccentAmber.copy(alpha = 0.65f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 12.dp, vertical = 5.dp)
+                    .testTag("blemish_suggestions_badge")
+            ) {
+                Text(
+                    text = AppStrings.blemishOverlayHint(suggestedBlemishes.size, lang),
+                    color = AccentAmber,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
         // Before indicator badge when holding compare
         if (isComparing) {
             Box(
@@ -408,6 +547,145 @@ fun PhotoCanvas(
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
+        // Quick Zoom In / Out / Reset pill bar for precision editing & retouching
+        if (displayBitmap != null && containerWidth > 0f && containerHeight > 0f && !isSplitView && !isCropMode && !isComparing) {
+            val bmpWidth = displayBitmap.width.toFloat()
+            val bmpHeight = displayBitmap.height.toFloat()
+            val fitScale = min(containerWidth / bmpWidth, containerHeight / bmpHeight)
+            val renderW = bmpWidth * fitScale
+            val renderH = bmpHeight * fitScale
+
+            ZoomControlsBar(
+                scale = scale,
+                lang = lang,
+                onZoomOut = {
+                    val (nextScale, nextOffset) = computeZoomedState(
+                        currentScale = scale,
+                        currentOffset = offset,
+                        targetScale = nextZoomOutStep(scale),
+                        renderW = renderW,
+                        renderH = renderH,
+                        containerW = containerWidth,
+                        containerH = containerHeight
+                    )
+                    scale = nextScale
+                    offset = nextOffset
+                },
+                onZoomIn = {
+                    val (nextScale, nextOffset) = computeZoomedState(
+                        currentScale = scale,
+                        currentOffset = offset,
+                        targetScale = nextZoomInStep(scale),
+                        renderW = renderW,
+                        renderH = renderH,
+                        containerW = containerWidth,
+                        containerH = containerHeight
+                    )
+                    scale = nextScale
+                    offset = nextOffset
+                },
+                onToggleReset = {
+                    if (scale > 1.05f) {
+                        scale = MIN_CANVAS_ZOOM
+                        offset = Offset.Zero
+                    } else {
+                        val (nextScale, nextOffset) = computeZoomedState(
+                            currentScale = scale,
+                            currentOffset = offset,
+                            targetScale = 2.0f,
+                            renderW = renderW,
+                            renderH = renderH,
+                            containerW = containerWidth,
+                            containerH = containerHeight
+                        )
+                        scale = nextScale
+                        offset = nextOffset
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 64.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ZoomControlsBar(
+    scale: Float,
+    lang: AppLanguage,
+    onZoomOut: () -> Unit,
+    onZoomIn: () -> Unit,
+    onToggleReset: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val canZoomOut = scale > 1.05f
+    val canZoomIn = scale < MAX_CANVAS_ZOOM - 0.05f
+    val zoomLabel = String.format(Locale.US, "%.1fx", scale)
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(StudioSurface.copy(alpha = 0.88f))
+            .border(
+                width = 1.dp,
+                color = if (canZoomOut) AccentCyan.copy(alpha = 0.7f) else StudioBorder,
+                shape = RoundedCornerShape(24.dp)
+            )
+            .padding(horizontal = 2.dp)
+            .testTag("canvas_zoom_controls"),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = onZoomOut,
+            enabled = canZoomOut,
+            modifier = Modifier
+                .size(40.dp)
+                .minimumInteractiveComponentSize()
+                .testTag("zoom_out_button")
+        ) {
+            Icon(
+                imageVector = Icons.Default.ZoomOut,
+                contentDescription = AppStrings.zoomOut(lang),
+                tint = if (canZoomOut) TextPrimary else TextDisabled,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onToggleReset)
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .testTag("zoom_reset_button"),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = zoomLabel,
+                color = if (canZoomOut) AccentCyan else TextPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+
+        IconButton(
+            onClick = onZoomIn,
+            enabled = canZoomIn,
+            modifier = Modifier
+                .size(40.dp)
+                .minimumInteractiveComponentSize()
+                .testTag("zoom_in_button")
+        ) {
+            Icon(
+                imageVector = Icons.Default.ZoomIn,
+                contentDescription = AppStrings.zoomIn(lang),
+                tint = if (canZoomIn) AccentCyan else TextDisabled,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -809,4 +1087,67 @@ fun LiveHistogramHud(
             drawChannel(histogram.blue, Color(0xFF448AFF).copy(alpha = 0.18f), Color(0xFF448AFF).copy(alpha = 0.75f))
         }
     }
+}
+
+internal const val MIN_CANVAS_ZOOM = 1f
+internal const val MAX_CANVAS_ZOOM = 6f
+
+internal fun nextZoomInStep(currentScale: Float): Float {
+    return when {
+        currentScale < 1.49f -> 1.5f
+        currentScale < 1.99f -> 2.0f
+        currentScale < 2.99f -> 3.0f
+        currentScale < 4.49f -> 4.5f
+        else -> MAX_CANVAS_ZOOM
+    }
+}
+
+internal fun nextZoomOutStep(currentScale: Float): Float {
+    return when {
+        currentScale > 4.6f -> 4.5f
+        currentScale > 3.1f -> 3.0f
+        currentScale > 2.1f -> 2.0f
+        currentScale > 1.55f -> 1.5f
+        else -> MIN_CANVAS_ZOOM
+    }
+}
+
+internal fun clampCanvasOffset(
+    candidate: Offset,
+    targetScale: Float,
+    renderW: Float,
+    renderH: Float,
+    containerW: Float,
+    containerH: Float
+): Offset {
+    if (targetScale <= 1.01f) return Offset.Zero
+    val maxOffsetX = max((renderW * targetScale - containerW) / 2f, renderW * (targetScale - 1f) / 2f).coerceAtLeast(0f)
+    val maxOffsetY = max((renderH * targetScale - containerH) / 2f, renderH * (targetScale - 1f) / 2f).coerceAtLeast(0f)
+    return Offset(
+        candidate.x.coerceIn(-maxOffsetX, maxOffsetX),
+        candidate.y.coerceIn(-maxOffsetY, maxOffsetY)
+    )
+}
+
+internal fun computeZoomedState(
+    currentScale: Float,
+    currentOffset: Offset,
+    targetScale: Float,
+    renderW: Float,
+    renderH: Float,
+    containerW: Float,
+    containerH: Float
+): Pair<Float, Offset> {
+    val clampedScale = targetScale.coerceIn(MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM)
+    if (clampedScale <= 1.01f) return MIN_CANVAS_ZOOM to Offset.Zero
+    val ratio = if (currentScale > 0.01f) clampedScale / currentScale else clampedScale
+    val scaledOffset = currentOffset * ratio
+    return clampedScale to clampCanvasOffset(
+        candidate = scaledOffset,
+        targetScale = clampedScale,
+        renderW = renderW,
+        renderH = renderH,
+        containerW = containerW,
+        containerH = containerH
+    )
 }

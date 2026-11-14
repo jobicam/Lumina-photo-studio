@@ -767,8 +767,12 @@ object BitmapProcessor {
         var sumG = 0L
         var sumB = 0L
         var count = 0
+        var skinSumR = 0L
+        var skinSumG = 0L
+        var skinSumB = 0L
+        var skinCount = 0
 
-        val rOuter = radius * 1.5f
+        val rOuter = radius * 1.55f
         val rInner = radius * 1.0f
 
         for (y in y0..y1) {
@@ -779,18 +783,27 @@ object BitmapProcessor {
                 val dist = sqrt((dx * dx + dy * dy).toFloat())
                 if (dist in rInner..rOuter) {
                     val p = patch[rowOffset + (x - x0)]
-                    sumR += (p shr 16) and 0xFF
-                    sumG += (p shr 8) and 0xFF
-                    sumB += p and 0xFF
+                    val pr = (p shr 16) and 0xFF
+                    val pg = (p shr 8) and 0xFF
+                    val pb = p and 0xFF
+                    sumR += pr
+                    sumG += pg
+                    sumB += pb
                     count++
+                    if (isSkinTone(pr, pg, pb)) {
+                        skinSumR += pr
+                        skinSumG += pg
+                        skinSumB += pb
+                        skinCount++
+                    }
                 }
             }
         }
 
         if (count == 0) return
-        val avgR = (sumR / count).toInt()
-        val avgG = (sumG / count).toInt()
-        val avgB = (sumB / count).toInt()
+        val avgR = if (skinCount >= 4) (skinSumR / skinCount).toInt() else (sumR / count).toInt()
+        val avgG = if (skinCount >= 4) (skinSumG / skinCount).toInt() else (sumG / count).toInt()
+        val avgB = if (skinCount >= 4) (skinSumB / skinCount).toInt() else (sumB / count).toInt()
 
         for (y in y0..y1) {
             val dy = y - cy
@@ -800,7 +813,14 @@ object BitmapProcessor {
                 val dist = sqrt((dx * dx + dy * dy).toFloat())
                 if (dist <= radius) {
                     val idx = rowOffset + (x - x0)
-                    val weight = (1.0f - (dist / radius)).coerceIn(0f, 1f) * intensity
+                    val normDist = (dist / radius).coerceIn(0f, 1f)
+                    val falloff = if (normDist <= 0.55f) {
+                        1.0f
+                    } else {
+                        val t = ((normDist - 0.55f) / 0.45f).coerceIn(0f, 1f)
+                        1.0f - t * t * (3f - 2f * t)
+                    }
+                    val weight = falloff * intensity
                     val orig = patch[idx]
                     val oR = (orig shr 16) and 0xFF
                     val oG = (orig shr 8) and 0xFF

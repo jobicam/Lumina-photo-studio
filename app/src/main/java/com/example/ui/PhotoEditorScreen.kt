@@ -218,6 +218,8 @@ fun PhotoEditorScreen(
                     isCropMode = isCropMode,
                     cropRect = uiState.pendingCropRect,
                     lockedCropRatio = lockedCropRatio,
+                    suggestedBlemishes = uiState.suggestedBlemishes,
+                    lang = lang,
                     onCropRectChanged = { viewModel.updatePendingCropRect(it) },
                     onSplitRatioChanged = { viewModel.setSplitRatio(it) },
                     onRetouchStroke = { viewModel.applyRetouchStroke(it) }
@@ -388,7 +390,10 @@ fun PhotoEditorScreen(
                         targetValue = when (uiState.activeTab) {
                             EditorTab.CURVES -> 296.dp
                             EditorTab.CROP -> 268.dp
-                            EditorTab.RETOUCH -> if (uiState.activeRetouchTool == com.example.model.RetouchType.SKIN_SMOOTH) 262.dp else 215.dp
+                            EditorTab.RETOUCH -> if (
+                                uiState.activeRetouchTool == com.example.model.RetouchType.SKIN_SMOOTH ||
+                                uiState.activeRetouchTool == com.example.model.RetouchType.BLEMISH
+                            ) 276.dp else 215.dp
                             EditorTab.ADJUST, EditorTab.HSL -> 215.dp
                             EditorTab.FILTERS -> 185.dp
                         },
@@ -422,6 +427,12 @@ fun PhotoEditorScreen(
                                 texturePreserve = uiState.texturePreserve,
                                 onTexturePreserveChanged = { viewModel.setTexturePreserve(it) },
                                 onAutoSkinSmooth = { viewModel.applyAutoSkinSmoothing() },
+                                suggestedBlemishCount = uiState.suggestedBlemishes.size,
+                                blemishSensitivity = uiState.blemishSensitivity,
+                                onBlemishSensitivityChanged = { viewModel.setBlemishSensitivity(it) },
+                                onDetectBlemishes = { viewModel.detectBlemishes() },
+                                onHealAllBlemishes = { viewModel.healAllSuggestedBlemishes() },
+                                onClearBlemishSuggestions = { viewModel.clearBlemishSuggestions() },
                                 lang = lang,
                                 hapticFeedback = hapticsEnabled
                             )

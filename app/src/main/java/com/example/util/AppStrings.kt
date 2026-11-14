@@ -38,7 +38,7 @@ object AppStrings {
     fun portraitBadge(lang: AppLanguage) = if (isKhmer(lang)) "មុខ & ស្បែក" else "Face & Skin"
     fun mountainSunset(lang: AppLanguage) = if (isKhmer(lang)) "ថ្ងៃលិចលើភ្នំ" else "Mountain Sunset"
     fun sunsetBadge(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ & តម្រង" else "Color & Filter"
-    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.5" else "STUDIO CAPABILITIES v2.5"
+    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.6" else "STUDIO CAPABILITIES v2.6"
 
     // Feature Banners
     fun skinSmoothBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "រលោងស្បែក Gaussian & រក្សាភាពលម្អិត" else "Gaussian Mask Skin Smoothing"
@@ -72,6 +72,9 @@ object AppStrings {
     fun save(lang: AppLanguage) = if (isKhmer(lang)) "រក្សាទុក" else "Save"
     fun moreOptions(lang: AppLanguage) = if (isKhmer(lang)) "ជម្រើសបន្ថែម" else "More options"
     fun histogramHud(lang: AppLanguage) = if (isKhmer(lang)) "ក្រាហ្វ RGB" else "Histogram"
+    fun zoomIn(lang: AppLanguage) = if (isKhmer(lang)) "ពង្រីករូប" else "Zoom In"
+    fun zoomOut(lang: AppLanguage) = if (isKhmer(lang)) "បង្រួមរូប" else "Zoom Out"
+    fun resetZoom(lang: AppLanguage) = if (isKhmer(lang)) "កំណត់ទំហំដើម 1.0x" else "Reset Zoom (1.0x)"
 
     // --- Editor Tabs ---
     fun tabFiltersLabel(lang: AppLanguage) = if (isKhmer(lang)) "តម្រងពណ៌" else "Filters"
@@ -82,6 +85,12 @@ object AppStrings {
     fun tabCropLabel(lang: AppLanguage) = if (isKhmer(lang)) "កាត់តម្រឹម" else "Crop"
     fun autoSmoothSkin(lang: AppLanguage) = if (isKhmer(lang)) "រលោងស្បែកស្វ័យប្រវត្តិ" else "Auto Smooth"
     fun autoSmoothSubtitle(lang: AppLanguage) = if (isKhmer(lang)) "រកឃើញផ្ទៃស្បែក & ធ្វើឱ្យរលោងភ្លាមៗ" else "Auto-detect skin tones & smooth portrait"
+    fun detectBlemishes(lang: AppLanguage) = if (isKhmer(lang)) "ស្វែងរកស្នាម" else "Auto Detect"
+    fun healAllSpots(count: Int, lang: AppLanguage) = if (isKhmer(lang)) "លុបទាំងអស់ ($count)" else "Heal All ($count)"
+    fun clearSpots(lang: AppLanguage) = if (isKhmer(lang)) "សម្អាត" else "Clear"
+    fun sensitivityLabel(lang: AppLanguage) = if (isKhmer(lang)) "ភាពរសើប" else "Sensitivity"
+    fun blemishOverlayHint(count: Int, lang: AppLanguage) =
+        if (isKhmer(lang)) "រកឃើញ $count ចំណុច • ចុចលើរង្វង់ដើម្បីបំបាត់" else "$count spots found • Tap ring to heal"
 
     // --- Tool Panels ---
     fun strength(lang: AppLanguage) = if (isKhmer(lang)) "កម្រិត" else "Strength"
@@ -210,6 +219,13 @@ object AppStrings {
     fun statusAutoEnhanceApplied(lang: AppLanguage) = if (isKhmer(lang)) "បានកែលម្អពន្លឺ និងពណ៌ស្វ័យប្រវត្តិ" else "Smart Auto Enhance applied"
     fun statusFrameApplied(frame: com.example.model.FrameStyle, lang: AppLanguage): String =
         if (isKhmer(lang)) "បានជ្រើសរើសស៊ុម៖ ${frameLabel(frame, lang)}" else "Frame: ${frameLabel(frame, lang)}"
+    fun statusBlemishesDetected(count: Int, lang: AppLanguage): String = when {
+        count <= 0 -> if (isKhmer(lang)) "មិនមានស្នាមអុចខ្មៅលើស្បែកទេ" else "No blemish spots detected on skin"
+        isKhmer(lang) -> "រកឃើញស្នាមចំនួន $count — ចុចរង្វង់ដើម្បីបំបាត់"
+        else -> "Found $count blemish spot${if (count == 1) "" else "s"} — tap a ring to heal"
+    }
+    fun statusAllBlemishesHealed(count: Int, lang: AppLanguage): String =
+        if (isKhmer(lang)) "បានបំបាត់ស្នាមទាំង $count ចំណុចរួចរាល់" else "Healed $count detected blemish${if (count == 1) "" else "es"}"
 
     // --- Filter Categories ---
     fun filterCategory(cat: com.example.model.FilterCategory, lang: AppLanguage): String = when (cat) {

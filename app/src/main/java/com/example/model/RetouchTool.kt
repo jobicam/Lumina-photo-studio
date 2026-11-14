@@ -74,3 +74,13 @@ data class StrokePoint(
     val normY: Float,
     val pressure: Float = 1.0f
 )
+
+data class BlemishSuggestion(
+    val id: Int,
+    val normX: Float,
+    val normY: Float,
+    val normRadius: Float,
+    val confidence: Float,
+    val areaPixels: Int
+)
+

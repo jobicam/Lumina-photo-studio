@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -197,7 +198,7 @@ fun WhatsNewModal(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Section 1: CURRENT VERSION HIGHLIGHT (v2.5.0)
+            // Section 1: CURRENT VERSION HIGHLIGHT (v2.6.0)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -208,14 +209,14 @@ fun WhatsNewModal(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Face,
+                    imageVector = Icons.Default.ZoomIn,
                     contentDescription = null,
-                    tint = AccentPink,
+                    tint = AccentCyan,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ស្បែករលោង Gaussian & អាប់ដេត" else "What's New in v$versionName — Gaussian Mask Skin Smoothing & Updates",
+                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ពង្រីករូប & ស្វែងរកស្នាមស្វ័យប្រវត្តិ" else "What's New in v$versionName — Photo Zoom & Auto Blemish Detection",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = AccentCyan
@@ -226,33 +227,33 @@ fun WhatsNewModal(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 WhatsNewItem(
-                    icon = Icons.Default.Face,
-                    iconTint = AccentPink,
-                    title = if (isKhmer) "រលោងស្បែកដោយរបាំង Gaussian" else "Localized Gaussian Blur Mask Skin Smoothing",
+                    icon = Icons.Default.ZoomIn,
+                    iconTint = AccentCyan,
+                    title = if (isKhmer) "ពង្រីក / បង្រួមរូបភាព (1.0x–6.0x) ពេលកែសម្រួល" else "Precision Photo Zoom In / Out & Retouch Pan",
                     description = if (isKhmer)
-                        "ប្រើរបាំងស្បែក YCbCr/HSV និង Gaussian ដើម្បីធ្វើឱ្យពណ៌ស្បែករលោងធម្មជាតិ ដោយមិនប៉ះពាល់ភ្នែក សក់ ឬផ្ទៃខាងក្រោយ។"
+                        "ប្រើប៊ូតុង + / - ឬម្រាមដៃពីរដើម្បីពង្រីករហូតដល់ 6.0x និងអូសរំកិលរូបភាពបានយ៉ាងងាយស្រួល ទោះជាកំពុងប្រើជក់ Retouch ក៏ដោយ។"
                     else
-                        "Separates low-frequency skin tone from micro-texture using feathered YCbCr/HSV Gaussian masks while keeping eyes, brows, and hair crisp."
+                        "Zoom up to 6.0x with quick + / - / 1.0x buttons, double-tap, or 2-finger pinch & pan right inside Retouch mode for fine detail editing."
                 )
 
                 WhatsNewItem(
                     icon = Icons.Default.AutoFixHigh,
-                    iconTint = AccentCyan,
-                    title = if (isKhmer) "របាររក្សាភាពលម្អិត (Detail Slider)" else "Micro-Texture Detail Preservation Control",
+                    iconTint = AccentAmber,
+                    title = if (isKhmer) "ស្វែងរក & លុបស្នាមអុចខ្មៅដោយស្វ័យប្រវត្តិ" else "Automated Skin Blemish Blob Detection",
                     description = if (isKhmer)
-                        "លៃតម្រូវកម្រិតរក្សារន្ធញើស និងភាពលម្អិតស្បែក (0%–75%) ទាំងសម្រាប់ជក់ Skin Smooth និង Auto Smooth។"
+                        "ស្កេនតំបន់ស្បែកដោយស្វ័យប្រវត្តិ បង្ហាញរង្វង់ណែនាំ ចុចលើចំណុចនីមួយៗ ឬចុចលុបទាំងអស់ក្នុងពេលតែមួយ។"
                     else
-                        "Fine-tune how much natural pore and skin micro-texture stays intact (0%–75%) in Retouch -> Skin Smooth and 1-tap Auto Smooth."
+                        "Detects compact blemishes strictly inside skin regions with sensitivity control, tap-to-heal target rings, and 1-tap Heal All."
                 )
 
                 WhatsNewItem(
-                    icon = Icons.Default.SystemUpdate,
-                    iconTint = AccentAmber,
-                    title = if (isKhmer) "កំណែ v$versionName & ពិនិត្យអាប់ដេតរហ័ស" else "Version v$versionName & Quick Update Check",
+                    icon = Icons.Default.Face,
+                    iconTint = AccentPink,
+                    title = if (isKhmer) "ធ្វើឱ្យប្រសើរឡើងនូវការបំបាត់ស្នាម & កំណែ v$versionName" else "Clean Spot Blend & v$versionName Update",
                     description = if (isKhmer)
-                        "ចុចប៊ូតុងអាប់ដេតលើទំព័រដើម ឬ Settings ដើម្បីផ្ទៀងផ្ទាត់កំណែកម្មវិធី និងទាញយកកំណែថ្មី។"
+                        "ជ្រើសរើសពណ៌ស្បែកជុំវិញដោយធម្មជាតិ គ្មានស្នាមស្រអាប់ និងងាយស្រួលពិនិត្យអាប់ដេតកំណែថ្មី។"
                     else
-                        "Track your installed build from Home, Settings, or Editor and launch new releases directly from the Update Checker."
+                        "Skin-prioritized boundary ring sampling with smoothstep falloff removes spots cleanly without dark halos."
                 )
             }
 
@@ -296,6 +297,13 @@ fun WhatsNewModal(
             if (showPreviousVersions) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WhatsNewItem(
+                        icon = Icons.Default.Face,
+                        iconTint = AccentPink,
+                        title = "v2.5.0: Gaussian Mask Skin Smoothing & Detail Slider",
+                        description = "Feathered YCbCr/HSV Gaussian skin smoothing with 0%-75% micro-texture preservation and streamlined update checks."
+                    )
+
                     WhatsNewItem(
                         icon = Icons.Default.SystemUpdate,
                         iconTint = AccentCyan,

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,8 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Refresh
@@ -39,6 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -294,6 +299,12 @@ fun RetouchPanel(
     texturePreserve: Float = 0.30f,
     onTexturePreserveChanged: (Float) -> Unit = {},
     onAutoSkinSmooth: () -> Unit = {},
+    suggestedBlemishCount: Int = 0,
+    blemishSensitivity: Float = 0.65f,
+    onBlemishSensitivityChanged: (Float) -> Unit = {},
+    onDetectBlemishes: () -> Unit = {},
+    onHealAllBlemishes: () -> Unit = {},
+    onClearBlemishSuggestions: () -> Unit = {},
     modifier: Modifier = Modifier,
     lang: AppLanguage = AppLanguage.SYSTEM,
     hapticFeedback: Boolean = true
@@ -302,10 +313,12 @@ fun RetouchPanel(
     var lastRadiusInt by remember { mutableIntStateOf(brushRadius.toInt()) }
     var lastIntensityInt by remember { mutableIntStateOf((brushIntensity * 100).toInt()) }
     var lastDetailInt by remember { mutableIntStateOf((texturePreserve * 100).toInt()) }
+    var lastSensitivityInt by remember { mutableIntStateOf((blemishSensitivity * 100).toInt()) }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(vertical = 8.dp)
             .testTag("retouch_panel")
     ) {
@@ -559,6 +572,145 @@ fun RetouchPanel(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.width(44.dp)
                 )
+            }
+        }
+
+        // Automated Blemish Blob Detection Controls (when Blemish Heal tool is active)
+        if (activeTool == RetouchType.BLEMISH) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .heightIn(min = 40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AccentCyan.copy(alpha = 0.16f))
+                        .border(1.dp, AccentCyan.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                        .clickable(onClick = onDetectBlemishes)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .testTag("detect_blemishes_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CenterFocusStrong,
+                            contentDescription = AppStrings.detectBlemishes(lang),
+                            tint = AccentCyan,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = AppStrings.detectBlemishes(lang),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentCyan,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+
+                if (suggestedBlemishCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .heightIn(min = 40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AccentAmber.copy(alpha = 0.2f))
+                            .border(1.dp, AccentAmber.copy(alpha = 0.65f), RoundedCornerShape(10.dp))
+                            .clickable(onClick = onHealAllBlemishes)
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .testTag("heal_all_blemishes_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DoneAll,
+                                contentDescription = AppStrings.healAllSpots(suggestedBlemishCount, lang),
+                                tint = AccentAmber,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = AppStrings.healAllSpots(suggestedBlemishCount, lang),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentAmber,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .heightIn(min = 40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(StudioCard)
+                            .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
+                            .clickable(onClick = onClearBlemishSuggestions)
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                            .testTag("clear_blemishes_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = AppStrings.clearSpots(lang),
+                                tint = TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = AppStrings.clearSpots(lang),
+                                fontSize = 11.sp,
+                                color = TextSecondary,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = AppStrings.sensitivityLabel(lang),
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        maxLines = 1
+                    )
+                    Slider(
+                        value = blemishSensitivity,
+                        onValueChange = { v ->
+                            val step = (v * 100).toInt()
+                            if (hapticFeedback && step != lastSensitivityInt) {
+                                lastSensitivityInt = step
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            onBlemishSensitivityChanged(v)
+                        },
+                        valueRange = 0.1f..1.0f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = AccentAmber,
+                            activeTrackColor = AccentAmber,
+                            inactiveTrackColor = StudioBorder
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("blemish_sensitivity_slider")
+                    )
+                    Text(
+                        text = "${(blemishSensitivity * 100).toInt()}%",
+                        fontSize = 11.sp,
+                        color = AccentAmber,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(36.dp)
+                    )
+                }
             }
         }
     }

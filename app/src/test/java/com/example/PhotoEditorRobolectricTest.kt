@@ -317,4 +317,87 @@ class PhotoEditorRobolectricTest {
         assertEquals("2.4.0", state.upgradedFromVersion)
         assertEquals(BuildConfig.VERSION_CODE, settingsPrefs.getInt("last_migrated_version_code", 0))
     }
+
+    @Test
+    fun testBlemishDetector_ignoresCleanSkinAndNonSkinRegions() {
+        val cleanSkin = Bitmap.createBitmap(160, 160, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 160) {
+            for (x in 0 until 160) {
+                if (x < 120) {
+                    cleanSkin.setPixel(x, y, Color.rgb(215, 165, 140))
+                } else {
+                    // Blue non-skin background with a dark spot that must be ignored
+                    val dx = x - 140
+                    val dy = y - 80
+                    if (dx * dx + dy * dy <= 25) {
+                        cleanSkin.setPixel(x, y, Color.rgb(10, 30, 100))
+                    } else {
+                        cleanSkin.setPixel(x, y, Color.rgb(25, 95, 225))
+                    }
+                }
+            }
+        }
+
+        val suggestions = com.example.processing.BlemishDetector.detectBlemishes(cleanSkin, sensitivity = 0.7f)
+        assertTrue("Clean skin and non-skin spots should yield 0 suggestions, got ${suggestions.size}", suggestions.isEmpty())
+    }
+
+    @Test
+    fun testBlemishDetector_detectsCompactSkinBlobsAndSupportsHealing() {
+        val portrait = Bitmap.createBitmap(160, 160, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 160) {
+            for (x in 0 until 160) {
+                if (x in 16..143 && y in 16..143) {
+                    portrait.setPixel(x, y, Color.rgb(215, 165, 140))
+                } else {
+                    // Non-skin border
+                    portrait.setPixel(x, y, Color.rgb(30, 90, 210))
+                }
+            }
+        }
+
+        // Paint two distinct blemish blobs inside the skin region
+        val spot1X = 48 // normX = 0.30
+        val spot1Y = 56 // normY = 0.35
+        val spot2X = 112 // normX = 0.70
+        val spot2Y = 96 // normY = 0.60
+        for (y in 0 until 160) {
+            for (x in 0 until 160) {
+                val d1 = (x - spot1X) * (x - spot1X) + (y - spot1Y) * (y - spot1Y)
+                val d2 = (x - spot2X) * (x - spot2X) + (y - spot2Y) * (y - spot2Y)
+                if (d1 <= 20) {
+                    // Reddish inflamed blemish
+                    portrait.setPixel(x, y, Color.rgb(170, 92, 82))
+                } else if (d2 <= 20) {
+                    // Darker brownish spot
+                    portrait.setPixel(x, y, Color.rgb(125, 84, 70))
+                }
+            }
+        }
+
+        val detected = com.example.processing.BlemishDetector.detectBlemishes(portrait, sensitivity = 0.65f)
+        assertEquals("Should detect exactly the 2 skin blemishes", 2, detected.size)
+
+        val nearSpot1 = detected.any { kotlin.math.hypot((it.normX - 0.30f).toDouble(), (it.normY - 0.35f).toDouble()) < 0.05 }
+        val nearSpot2 = detected.any { kotlin.math.hypot((it.normX - 0.70f).toDouble(), (it.normY - 0.60f).toDouble()) < 0.05 }
+        assertTrue("Expected suggestion near (0.30, 0.35), got $detected", nearSpot1)
+        assertTrue("Expected suggestion near (0.70, 0.60), got $detected", nearSpot2)
+
+        // Heal all detected spots using the same normalized 400px reference radius as PhotoEditorViewModel
+        val healed = portrait.copy(Bitmap.Config.ARGB_8888, true)
+        for (s in detected) {
+            BitmapProcessor.applyRetouchStroke(
+                healed,
+                RetouchStroke(
+                    type = RetouchType.BLEMISH,
+                    points = listOf(StrokePoint(s.normX, s.normY)),
+                    radius = (s.normRadius * 400f * 1.35f).coerceIn(16f, 60f),
+                    intensity = 1.0f
+                )
+            )
+        }
+
+        val afterHeal = com.example.processing.BlemishDetector.detectBlemishes(healed, sensitivity = 0.65f)
+        assertTrue("Re-scanning after healing all suggested spots should find fewer/no spots (got ${afterHeal.size})", afterHeal.isEmpty())
+    }
 }

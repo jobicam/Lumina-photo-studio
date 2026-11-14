@@ -273,7 +273,51 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.skinSmoothBannerTitle(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.5"))
+        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.6"))
+        assertTrue(com.example.util.AppStrings.zoomIn(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.zoomIn(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.zoomOut(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.resetZoom(en).contains("1.0x"))
+    }
+
+    @Test
+    fun testCanvasZoomHelpers_stepProgressionAndOffsetClamping() {
+        var z = com.example.ui.components.MIN_CANVAS_ZOOM
+        z = com.example.ui.components.nextZoomInStep(z)
+        assertEquals(1.5f, z, 0.001f)
+        z = com.example.ui.components.nextZoomInStep(z)
+        assertEquals(2.0f, z, 0.001f)
+        z = com.example.ui.components.nextZoomInStep(z)
+        assertEquals(3.0f, z, 0.001f)
+        z = com.example.ui.components.nextZoomInStep(z)
+        assertEquals(4.5f, z, 0.001f)
+        z = com.example.ui.components.nextZoomInStep(z)
+        assertEquals(6.0f, z, 0.001f)
+
+        val (zoomedScale, zoomedOffset) = com.example.ui.components.computeZoomedState(
+            currentScale = 2.0f,
+            currentOffset = androidx.compose.ui.geometry.Offset(5000f, -5000f),
+            targetScale = 4.0f,
+            renderW = 800f,
+            renderH = 600f,
+            containerW = 1000f,
+            containerH = 1000f
+        )
+        assertEquals(4.0f, zoomedScale, 0.001f)
+        assertTrue("Offset should clamp within scaled bounds", kotlin.math.abs(zoomedOffset.x) <= 1200.1f)
+        assertTrue("Offset should clamp within scaled bounds", kotlin.math.abs(zoomedOffset.y) <= 900.1f)
+
+        val (resetScale, resetOffset) = com.example.ui.components.computeZoomedState(
+            currentScale = 3.0f,
+            currentOffset = androidx.compose.ui.geometry.Offset(120f, -80f),
+            targetScale = com.example.ui.components.nextZoomOutStep(1.4f),
+            renderW = 800f,
+            renderH = 600f,
+            containerW = 1000f,
+            containerH = 1000f
+        )
+        assertEquals(1.0f, resetScale, 0.001f)
+        assertEquals(androidx.compose.ui.geometry.Offset.Zero, resetOffset)
     }
 
     @Test
