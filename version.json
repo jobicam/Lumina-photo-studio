@@ -1,0 +1,7 @@
+{
+  "versionCode": 11,
+  "versionName": "2.5.0",
+  "releaseNotes": "Localized Gaussian blur mask skin smoothing with micro-texture Detail preservation slider (0%-75%), upgraded 1-tap Auto Smooth, interactive aspect-ratio cropping, and streamlined update verification.",
+  "downloadUrl": "",
+  "mandatory": false
+}
