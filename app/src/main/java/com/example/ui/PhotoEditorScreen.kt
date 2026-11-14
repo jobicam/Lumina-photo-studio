@@ -155,14 +155,6 @@ fun PhotoEditorScreen(
         viewModel.navigateTo(AppScreen.HOME)
     }
 
-    LaunchedEffect(uiState.statusMessage) {
-        val msg = uiState.statusMessage
-        if (msg != null) {
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-            viewModel.clearStatusMessage()
-        }
-    }
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -204,7 +196,8 @@ fun PhotoEditorScreen(
                     .fillMaxWidth()
             ) {
                 val isCropMode = uiState.activeTab == EditorTab.CROP
-                val lockedCropRatio = uiState.displayBitmap?.let { bmp ->
+                val cropSourceBmp = uiState.workingBitmap ?: uiState.displayBitmap
+                val lockedCropRatio = cropSourceBmp?.let { bmp ->
                     com.example.model.CropRect.effectiveRatio(
                         bitmapWidth = bmp.width,
                         bitmapHeight = bmp.height,

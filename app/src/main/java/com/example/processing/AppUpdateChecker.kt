@@ -114,9 +114,11 @@ object AppUpdateChecker {
                 ?.mapNotNull { it as? Map<*, *> }
                 ?.mapNotNull { asset ->
                     val assetUrl = (asset["browser_download_url"] as? String)?.trim().orEmpty()
+                    val cleanAssetUrl = assetUrl.substringBefore('?').substringBefore('#')
                     val assetName = (asset["name"] as? String).orEmpty()
                     if (assetUrl.isNotBlank() &&
-                        (assetName.endsWith(".apk", ignoreCase = true) || assetUrl.endsWith(".apk", ignoreCase = true))
+                        (assetName.endsWith(".apk", ignoreCase = true) ||
+                            cleanAssetUrl.endsWith(".apk", ignoreCase = true))
                     ) {
                         assetUrl
                     } else {
@@ -126,12 +128,12 @@ object AppUpdateChecker {
                 ?.firstOrNull()
 
             val downloadUrl = apkAssetUrl
-                ?: (map["downloadUrl"] as? String)
-                ?: (map["download_url"] as? String)
-                ?: (map["releaseUrl"] as? String)
-                ?: (map["html_url"] as? String)
-                ?: fallbackReleaseUrl.takeIf { it.isNotBlank() }
-                ?: (map["url"] as? String)
+                ?: (map["downloadUrl"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: (map["download_url"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: (map["releaseUrl"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: (map["html_url"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: fallbackReleaseUrl.trim().takeIf { it.isNotEmpty() }
+                ?: (map["url"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
                 ?: ""
 
             val mandatory = (map["mandatory"] as? Boolean)
@@ -189,14 +191,10 @@ object AppUpdateChecker {
     }
 
     private fun parseVersionParts(raw: String): List<Int> {
-        val cleaned = raw.trim()
-            .removePrefix("v")
-            .removePrefix("V")
-            .substringBefore('-')
-            .substringBefore('+')
-        if (cleaned.isBlank()) return listOf(0)
-        return cleaned.split('.').map { part ->
-            part.filter { it.isDigit() }.toIntOrNull() ?: 0
+        val numericSegment = Regex("""\d+(?:\.\d+)*""").find(raw.trim())?.value
+            ?: return listOf(0)
+        return numericSegment.split('.').map { part ->
+            part.toIntOrNull() ?: 0
         }
     }
 
@@ -310,7 +308,7 @@ object AppUpdateChecker {
                     currentVersionName = currentName,
                     currentVersionCode = currentCode,
                     latestVersionName = resolvedManifest.versionName.ifBlank { currentName },
-                    latestVersionCode = if (resolvedManifest.versionCode > 0L) resolvedManifest.versionCode else currentCode + 1L,
+                    latestVersionCode = resolvedManifest.versionCode,
                     releaseNotes = resolvedManifest.releaseNotes,
                     downloadUrl = resolvedManifest.downloadUrl,
                     isMandatory = resolvedManifest.isMandatory,
@@ -363,17 +361,24 @@ object AppUpdateChecker {
         val match = ghLatestRegex.matchEntire(url) ?: return null
         val owner = match.groupValues[1]
         val repo = match.groupValues[2]
+        val releasesPageUrl = "https://github.com/$owner/$repo/releases"
 
         // 1. Check recent releases (includes pre-releases)
         val releasesRes = fetchManifest("https://api.github.com/repos/$owner/$repo/releases?per_page=1", currentName)
         if (releasesRes.isSuccessful) {
-            parseManifestJson(releasesRes.body)?.let { return it }
+            parseManifestJson(releasesRes.body, fallbackReleaseUrl = releasesPageUrl)?.let { return it }
         }
 
         // 2. Check repository tags (if tags exist without a formal Release)
         val tagsRes = fetchManifest("https://api.github.com/repos/$owner/$repo/tags?per_page=1", currentName)
         if (tagsRes.isSuccessful) {
-            parseManifestJson(tagsRes.body, fallbackReleaseUrl = "https://github.com/$owner/$repo/releases")?.let { return it }
+            parseManifestJson(tagsRes.body, fallbackReleaseUrl = releasesPageUrl)?.let { return it }
+        }
+
+        // 3. Check raw version.json on main branch as final fallback
+        val rawManifestRes = fetchManifest("https://raw.githubusercontent.com/$owner/$repo/main/version.json", currentName)
+        if (rawManifestRes.isSuccessful) {
+            parseManifestJson(rawManifestRes.body, fallbackReleaseUrl = releasesPageUrl)?.let { return it }
         }
 
         return null

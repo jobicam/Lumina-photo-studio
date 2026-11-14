@@ -354,4 +354,44 @@ class PhotoEditorUnitTest {
         assertEquals("2.5.0", parsedTag!!.versionName)
         assertEquals("https://github.com/alice/lumina/releases", parsedTag.downloadUrl)
     }
+
+    @Test
+    fun testAppUpdateChecker_prefixedTagsQueryParamsAndEmptyDownloadFallback() {
+        // Prefixed and suffixed tag names should parse numeric semver cleanly
+        assertTrue(com.example.processing.AppUpdateChecker.compareSemanticVersions("lumina-v2.6.0-rc1", "2.5.0") > 0)
+        assertEquals(0, com.example.processing.AppUpdateChecker.compareSemanticVersions("android-2.5.0+11", "2.5.0"))
+
+        // Asset URL with query parameters should still match as .apk
+        val queryAssetJson = """
+            {
+              "tag_name": "lumina-v2.6.0",
+              "html_url": "https://github.com/alice/lumina/releases/tag/v2.6.0",
+              "assets": [
+                {
+                  "name": "LuminaPhoto",
+                  "browser_download_url": "https://cdn.example.com/LuminaPhoto.apk?download=1"
+                }
+              ]
+            }
+        """.trimIndent()
+        val parsedQuery = com.example.processing.AppUpdateChecker.parseManifestJson(queryAssetJson)
+        assertTrue(parsedQuery != null)
+        assertEquals("https://cdn.example.com/LuminaPhoto.apk?download=1", parsedQuery!!.downloadUrl)
+        assertTrue(com.example.processing.AppUpdateChecker.isUpdateAvailable(11L, "2.5.0", parsedQuery))
+
+        // Empty downloadUrl should fall back to fallbackReleaseUrl
+        val emptyUrlJson = """
+            {
+              "versionCode": 12,
+              "versionName": "2.6.0",
+              "downloadUrl": ""
+            }
+        """.trimIndent()
+        val parsedEmpty = com.example.processing.AppUpdateChecker.parseManifestJson(
+            emptyUrlJson,
+            fallbackReleaseUrl = "https://github.com/alice/lumina/releases"
+        )
+        assertTrue(parsedEmpty != null)
+        assertEquals("https://github.com/alice/lumina/releases", parsedEmpty!!.downloadUrl)
+    }
 }

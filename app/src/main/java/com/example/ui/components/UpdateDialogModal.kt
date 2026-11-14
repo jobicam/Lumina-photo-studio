@@ -253,8 +253,13 @@ fun UpdateCheckerModal(
                                 fontSize = 12.sp,
                                 color = TextSecondary
                             )
+                            val latestLabel = if (updateStatus.latestVersionCode > 0L) {
+                                "v${updateStatus.latestVersionName} (Build ${updateStatus.latestVersionCode})"
+                            } else {
+                                "v${updateStatus.latestVersionName}"
+                            }
                             Text(
-                                text = "v${updateStatus.latestVersionName} (Build ${updateStatus.latestVersionCode})",
+                                text = latestLabel,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = AccentAmber
@@ -305,36 +310,86 @@ fun UpdateCheckerModal(
             }
 
             // Download / Get Update CTA when available
-            if (updateStatus is UpdateStatus.UpdateAvailable && updateStatus.downloadUrl.isNotBlank()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateStatus.downloadUrl))
-                            context.startActivity(intent)
-                        } catch (_: Exception) {
-                            Toast.makeText(context, "Unable to open update link", Toast.LENGTH_SHORT).show()
+            if (updateStatus is UpdateStatus.UpdateAvailable) {
+                if (updateStatus.downloadUrl.isNotBlank()) {
+                    val isDirectApk = updateStatus.downloadUrl
+                        .substringBefore('?')
+                        .substringBefore('#')
+                        .endsWith(".apk", ignoreCase = true)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateStatus.downloadUrl)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, "Unable to open update link", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentAmber),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("open_update_url_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInNew,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isDirectApk) AppStrings.downloadApkUpdate(lang) else AppStrings.downloadUpdate(lang),
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentAmber),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("open_update_url_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.OpenInNew,
-                        contentDescription = null,
-                        tint = Color.Black,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                clipboardManager.setText(AnnotatedString(updateStatus.downloadUrl))
+                                Toast.makeText(context, AppStrings.linkCopiedToast(lang), Toast.LENGTH_SHORT).show()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("copy_update_url_button"),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = AppStrings.linkCopiedToast(lang),
+                                tint = AccentAmber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = AppStrings.downloadUpdate(lang),
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        text = AppStrings.directUpdateHint(lang),
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        lineHeight = 15.sp
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = AppStrings.noDownloadLinkHint(lang),
+                        fontSize = 11.sp,
+                        color = AccentAmber,
+                        lineHeight = 15.sp
                     )
                 }
             }

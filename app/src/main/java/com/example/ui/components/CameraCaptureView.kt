@@ -225,6 +225,14 @@ fun CameraCaptureView(
     var selectedPreset by remember { mutableStateOf(FilterPresets.NONE) }
     var showFilterStrip by remember { mutableStateOf(true) }
     var livePreviewFrame by remember { mutableStateOf<Bitmap?>(null) }
+    var isViewActive by remember { mutableStateOf(true) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            isViewActive = false
+            livePreviewFrame = null
+        }
+    }
 
     val needLiveFrames by rememberUpdatedState(showFilterStrip || selectedPreset != FilterPresets.NONE)
     val activeLensFacing by rememberUpdatedState(lensFacing)
@@ -401,7 +409,7 @@ fun CameraCaptureView(
             IconButton(
                 onClick = onClose,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .background(Color.Black.copy(alpha = 0.55f), CircleShape)
                     .testTag("close_camera_button")
             ) {
@@ -453,7 +461,7 @@ fun CameraCaptureView(
                 IconButton(
                     onClick = { showFilterStrip = !showFilterStrip },
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .background(
                             if (showFilterStrip) AccentCyan.copy(alpha = 0.28f) else Color.Black.copy(alpha = 0.55f),
                             CircleShape
@@ -481,7 +489,7 @@ fun CameraCaptureView(
                         }
                     },
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .background(Color.Black.copy(alpha = 0.55f), CircleShape)
                         .testTag("toggle_flash_button")
                 ) {
@@ -563,6 +571,7 @@ fun CameraCaptureView(
                             val capture = imageCapture ?: return@clickable
                             isCapturing = true
                             val appliedPreset = selectedPreset
+                            val isFrontCapture = lensFacing == CameraSelector.LENS_FACING_FRONT
 
                             capture.takePicture(
                                 ContextCompat.getMainExecutor(context),
@@ -572,13 +581,26 @@ fun CameraCaptureView(
                                         val rawBitmap = imageProxy.toBitmap()
                                         imageProxy.close()
 
-                                        val finalBitmap = if (rotationDegrees != 0) {
-                                            val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-                                            val rotated = Bitmap.createBitmap(
+                                        if (!isViewActive) {
+                                            if (!rawBitmap.isRecycled) rawBitmap.recycle()
+                                            isCapturing = false
+                                            return
+                                        }
+
+                                        val finalBitmap = if (rotationDegrees != 0 || isFrontCapture) {
+                                            val matrix = Matrix().apply {
+                                                if (rotationDegrees != 0) {
+                                                    postRotate(rotationDegrees.toFloat())
+                                                }
+                                                if (isFrontCapture) {
+                                                    postScale(-1f, 1f)
+                                                }
+                                            }
+                                            val transformed = Bitmap.createBitmap(
                                                 rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true
                                             )
-                                            if (rotated !== rawBitmap) rawBitmap.recycle()
-                                            rotated
+                                            if (transformed !== rawBitmap) rawBitmap.recycle()
+                                            transformed
                                         } else {
                                             rawBitmap
                                         }
@@ -589,6 +611,7 @@ fun CameraCaptureView(
 
                                     override fun onError(exception: ImageCaptureException) {
                                         isCapturing = false
+                                        if (!isViewActive) return
                                         Toast.makeText(
                                             context,
                                             AppStrings.cameraCaptureFailed(lang, exception.localizedMessage),

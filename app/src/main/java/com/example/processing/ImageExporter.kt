@@ -38,7 +38,11 @@ object ImageExporter {
             val extension = if (format == Bitmap.CompressFormat.PNG) "png" else "jpg"
             val mimeType = if (format == Bitmap.CompressFormat.PNG) "image/png" else "image/jpeg"
 
-            val baseName = customFilename?.trim()?.takeIf { it.isNotEmpty() } ?: run {
+            val rawBaseName = customFilename?.trim()?.takeIf { it.isNotEmpty() } ?: run {
+                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                "Lumina_$timestamp"
+            }
+            val baseName = rawBaseName.replace(Regex("""[\\/:*?"<>|]"""), "_").trim().ifEmpty {
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
                 "Lumina_$timestamp"
             }
@@ -66,16 +70,23 @@ object ImageExporter {
 
             var bytesWritten = 0L
 
-            resolver.openOutputStream(uri)?.use { rawStream: OutputStream ->
+            val openedStream = resolver.openOutputStream(uri)
+            if (openedStream == null) {
+                runCatching { resolver.delete(uri, null, null) }
+                return@withContext Result.failure(Exception("Unable to open output stream for saved image"))
+            }
+
+            openedStream.use { rawStream: OutputStream ->
                 val countingStream = CountingOutputStream(rawStream)
                 val success = finalBitmap.compress(format, quality, countingStream)
                 countingStream.flush()
                 bytesWritten = countingStream.bytesWritten
 
                 if (!success) {
+                    runCatching { resolver.delete(uri, null, null) }
                     return@withContext Result.failure(Exception("Failed to compress and save image to gallery"))
                 }
-            } ?: return@withContext Result.failure(Exception("Unable to open output stream for saved image"))
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 contentValues.clear()

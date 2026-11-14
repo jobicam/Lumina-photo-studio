@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,10 @@ fun CurvesCanvas(
 ) {
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
 
+    val latestCurve by rememberUpdatedState(curve)
+    val latestOnCurveChanged by rememberUpdatedState(onCurveChanged)
+    val latestOnEditFinished by rememberUpdatedState(onEditFinished)
+
     val curveColor = when (channel) {
         CurveChannel.RGB -> Color.White
         CurveChannel.RED -> Color(0xFFFF5252)
@@ -63,42 +68,44 @@ fun CurvesCanvas(
                 .fillMaxSize()
                 .padding(14.dp)
                 .testTag("curves_interactive_canvas")
-                .pointerInput(curve) {
+                .pointerInput(channel) {
                     detectTapGestures { offset ->
+                        val activeCurve = latestCurve
                         val normX = (offset.x / size.width).coerceIn(0f, 1f)
                         val normY = (1f - offset.y / size.height).coerceIn(0f, 1f)
 
-                        val existingIndex = curve.points.indexOfFirst { pt ->
+                        val existingIndex = activeCurve.points.indexOfFirst { pt ->
                             val px = pt.x * size.width
                             val py = (1f - pt.y) * size.height
                             val dist = sqrt((px - offset.x) * (px - offset.x) + (py - offset.y) * (py - offset.y))
                             dist < 36f
                         }
 
-                        if (existingIndex > 0 && existingIndex < curve.points.size - 1) {
-                            val updated = curve.points.toMutableList()
+                        if (existingIndex > 0 && existingIndex < activeCurve.points.size - 1) {
+                            val updated = activeCurve.points.toMutableList()
                             updated.removeAt(existingIndex)
-                            onCurveChanged(SingleCurve(updated.sortedBy { it.x }))
-                            onEditFinished()
+                            latestOnCurveChanged(SingleCurve(updated.sortedBy { it.x }))
+                            latestOnEditFinished()
                         } else if (existingIndex == -1) {
-                            val updated = curve.points.toMutableList()
+                            val updated = activeCurve.points.toMutableList()
                             updated.add(CurvePoint(normX, normY))
-                            onCurveChanged(SingleCurve(updated.sortedBy { it.x }))
-                            onEditFinished()
+                            latestOnCurveChanged(SingleCurve(updated.sortedBy { it.x }))
+                            latestOnEditFinished()
                         }
                     }
                 }
-                .pointerInput(curve) {
+                .pointerInput(channel) {
                     detectDragGestures(
                         onDragStart = { offset ->
-                            val closest = curve.points.indices.minByOrNull { i ->
-                                val pt = curve.points[i]
+                            val activeCurve = latestCurve
+                            val closest = activeCurve.points.indices.minByOrNull { i ->
+                                val pt = activeCurve.points[i]
                                 val px = pt.x * size.width
                                 val py = (1f - pt.y) * size.height
                                 (px - offset.x) * (px - offset.x) + (py - offset.y) * (py - offset.y)
                             }
                             if (closest != null) {
-                                val pt = curve.points[closest]
+                                val pt = activeCurve.points[closest]
                                 val px = pt.x * size.width
                                 val py = (1f - pt.y) * size.height
                                 val dist = sqrt((px - offset.x) * (px - offset.x) + (py - offset.y) * (py - offset.y))
@@ -110,23 +117,24 @@ fun CurvesCanvas(
                         onDragEnd = {
                             if (draggedIndex != null) {
                                 draggedIndex = null
-                                onEditFinished()
+                                latestOnEditFinished()
                             }
                         },
                         onDragCancel = {
                             if (draggedIndex != null) {
                                 draggedIndex = null
-                                onEditFinished()
+                                latestOnEditFinished()
                             }
                         },
                         onDrag = { change, _ ->
                             val idx = draggedIndex ?: return@detectDragGestures
-                            if (idx !in curve.points.indices) return@detectDragGestures
+                            val activeCurve = latestCurve
+                            if (idx !in activeCurve.points.indices) return@detectDragGestures
                             change.consume()
                             val normX = (change.position.x / size.width).coerceIn(0f, 1f)
                             val normY = (1f - change.position.y / size.height).coerceIn(0f, 1f)
 
-                            val updated = curve.points.toMutableList()
+                            val updated = activeCurve.points.toMutableList()
                             val newX = when (idx) {
                                 0 -> 0f
                                 updated.size - 1 -> 1f
@@ -137,7 +145,7 @@ fun CurvesCanvas(
                             updated[idx] = newPoint
                             val sorted = updated.sortedBy { it.x }
                             draggedIndex = sorted.indexOf(newPoint)
-                            onCurveChanged(SingleCurve(sorted))
+                            latestOnCurveChanged(SingleCurve(sorted))
                         }
                     )
                 }

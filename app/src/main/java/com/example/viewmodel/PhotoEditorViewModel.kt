@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -355,12 +357,26 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 val loaded = withContext(Dispatchers.IO) {
                     val context = getApplication<Application>()
-                    val inputStream = context.contentResolver.openInputStream(uri)
-                    val rawBmp = BitmapFactory.decodeStream(inputStream)
-                    inputStream?.close()
+                    val exifOrientation = runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { exifStream ->
+                            ExifInterface(exifStream).getAttributeInt(
+                                ExifInterface.TAG_ORIENTATION,
+                                ExifInterface.ORIENTATION_NORMAL
+                            )
+                        }
+                    }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
+
+                    val rawBmp = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+
                     if (rawBmp != null) {
+                        val orientedBmp = applyExifOrientation(rawBmp, exifOrientation)
                         val maxDim = _uiState.value.settings.maxResolution
-                        val scaled = BitmapProcessor.downscaleIfNeeded(rawBmp, maxDim)
+                        val scaled = BitmapProcessor.downscaleIfNeeded(orientedBmp, maxDim)
+                        if (scaled !== orientedBmp && !orientedBmp.isRecycled) {
+                            orientedBmp.recycle()
+                        }
                         val hist = BitmapProcessor.calculateHistogram(scaled)
                         scaled to hist
                     } else {
@@ -379,6 +395,35 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             } finally {
                 _uiState.update { it.copy(isProcessing = false) }
             }
+        }
+    }
+
+    private fun applyExifOrientation(source: Bitmap, orientation: Int): Bitmap {
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.setRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.setRotate(-90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
+            else -> return source
+        }
+        return try {
+            val rotated = Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+            if (rotated !== source && !source.isRecycled) {
+                source.recycle()
+            }
+            rotated
+        } catch (_: Exception) {
+            source
         }
     }
 
