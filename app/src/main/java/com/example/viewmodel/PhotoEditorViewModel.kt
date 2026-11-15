@@ -10,6 +10,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.R
+import com.example.model.AdjustCategory
 import com.example.model.AdjustmentState
 import com.example.model.AppLanguage
 import com.example.model.CropAspectRatio
@@ -86,6 +87,7 @@ data class EditorUiState(
     val workingBitmap: Bitmap? = null,
     val displayBitmap: Bitmap? = null,
     val activeTab: EditorTab = EditorTab.FILTERS,
+    val activeAdjustCategory: AdjustCategory = AdjustCategory.LIGHT,
     val activePreset: FilterPreset = FilterPresets.NONE,
     val filterIntensity: Float = 1.0f,
     val adjustments: AdjustmentState = AdjustmentState(),
@@ -629,10 +631,53 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     // --- ADJUSTMENTS ---
+    fun selectAdjustCategory(category: AdjustCategory) {
+        continuousEditSnapshotted = false
+        _uiState.update { it.copy(activeAdjustCategory = category) }
+    }
+
     fun updateAdjustments(update: (AdjustmentState) -> AdjustmentState) {
         beginContinuousEdit()
         _uiState.update { it.copy(adjustments = update(it.adjustments)) }
         triggerRender()
+    }
+
+    fun setBlurFocusPoint(normX: Float, normY: Float) {
+        continuousEditSnapshotted = false
+        pushHistory()
+        _uiState.update { state ->
+            state.copy(
+                adjustments = state.adjustments.copy(
+                    blurFocusX = normX.coerceIn(0f, 1f),
+                    blurFocusY = normY.coerceIn(0f, 1f)
+                )
+            )
+        }
+        triggerRender()
+    }
+
+    fun openBackgroundBlurTool() {
+        continuousEditSnapshotted = false
+        val lang = _uiState.value.settings.appLanguage
+        val needsInitialBlur = _uiState.value.adjustments.backgroundBlur <= 0f
+        if (needsInitialBlur) {
+            pushHistory()
+        }
+        _uiState.update { state ->
+            state.copy(
+                activeTab = EditorTab.ADJUST,
+                activeAdjustCategory = AdjustCategory.EFFECTS,
+                adjustments = if (needsInitialBlur) {
+                    state.adjustments.copy(backgroundBlur = 50f)
+                } else {
+                    state.adjustments
+                },
+                statusMessage = AppStrings.statusBackgroundBlurEnabled(lang)
+            )
+        }
+        if (needsInitialBlur) {
+            triggerRender()
+        }
     }
 
     fun resetAdjustments() {

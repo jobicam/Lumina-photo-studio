@@ -198,7 +198,7 @@ fun WhatsNewModal(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Section 1: CURRENT VERSION HIGHLIGHT (v2.6.0)
+            // Section 1: CURRENT VERSION HIGHLIGHT (v2.7.0)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -216,7 +216,7 @@ fun WhatsNewModal(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ពង្រីករូប & ស្វែងរកស្នាមស្វ័យប្រវត្តិ" else "What's New in v$versionName — Photo Zoom & Auto Blemish Detection",
+                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ព្រាលផ្ទៃក្រោយ & ពង្រីករូប" else "What's New in v$versionName — Background Blur & Photo Zoom",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = AccentCyan
@@ -244,6 +244,16 @@ fun WhatsNewModal(
                         "ស្កេនតំបន់ស្បែកដោយស្វ័យប្រវត្តិ បង្ហាញរង្វង់ណែនាំ ចុចលើចំណុចនីមួយៗ ឬចុចលុបទាំងអស់ក្នុងពេលតែមួយ។"
                     else
                         "Detects compact blemishes strictly inside skin regions with sensitivity control, tap-to-heal target rings, and 1-tap Heal All."
+                )
+
+                WhatsNewItem(
+                    icon = Icons.Default.AutoAwesome,
+                    iconTint = AccentPurple,
+                    title = if (isKhmer) "ព្រាលផ្ទៃខាងក្រោយ (Portrait Bokeh)" else "Background Blur & Tap-to-Focus Bokeh",
+                    description = if (isKhmer)
+                        "ព្រាលផ្ទៃខាងក្រោយដោយស្វ័យប្រវត្តិ ដោយរក្សាប្រធានបទឱ្យច្បាស់ និងចុចលើរូបដើម្បីកំណត់ចំណុចផ្ដោត។"
+                    else
+                        "Smooth optical background bokeh with adjustable focus size, subject protection, and tap-anywhere refocusing under Adjust → Effects."
                 )
 
                 WhatsNewItem(

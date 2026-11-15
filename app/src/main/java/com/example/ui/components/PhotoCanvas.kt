@@ -100,8 +100,13 @@ fun PhotoCanvas(
     cropRect: CropRect = CropRect(),
     lockedCropRatio: Float? = null,
     suggestedBlemishes: List<BlemishSuggestion> = emptyList(),
+    isBlurFocusMode: Boolean = false,
+    blurFocusX: Float = 0.50f,
+    blurFocusY: Float = 0.42f,
+    blurFocusRadius: Float = 0.32f,
     lang: AppLanguage = AppLanguage.SYSTEM,
     onCropRectChanged: (CropRect) -> Unit = {},
+    onBlurFocusChanged: (Float, Float) -> Unit = { _, _ -> },
     onSplitRatioChanged: (Float) -> Unit,
     onRetouchStroke: (List<StrokePoint>) -> Unit,
     modifier: Modifier = Modifier
@@ -140,12 +145,26 @@ fun PhotoCanvas(
             val imgLeft = (containerWidth - renderW) / 2f
             val imgTop = (containerHeight - renderH) / 2f
 
+            val latestBlurFocusMode by rememberUpdatedState(isBlurFocusMode)
+            val latestOnBlurFocusChanged by rememberUpdatedState(onBlurFocusChanged)
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(isRetouchMode, isSplitView, isCropMode, renderW, renderH) {
+                    .pointerInput(isRetouchMode, isSplitView, isCropMode, renderW, renderH, imgLeft, imgTop) {
                         if (!isRetouchMode && !isSplitView && !isCropMode) {
                             detectTapGestures(
+                                onTap = { tapPos ->
+                                    if (latestBlurFocusMode) {
+                                        val cx = containerWidth / 2f
+                                        val cy = containerHeight / 2f
+                                        val contentX = (tapPos.x - cx - offset.x) / scale + cx
+                                        val contentY = (tapPos.y - cy - offset.y) / scale + cy
+                                        val normX = ((contentX - imgLeft) / renderW).coerceIn(0f, 1f)
+                                        val normY = ((contentY - imgTop) / renderH).coerceIn(0f, 1f)
+                                        latestOnBlurFocusChanged(normX, normY)
+                                    }
+                                },
                                 onDoubleTap = { tapPos ->
                                     if (scale > 1.05f) {
                                         scale = 1f
@@ -444,6 +463,36 @@ fun PhotoCanvas(
                             color = Color.White,
                             radius = 2.5.dp.toPx(),
                             center = pos
+                        )
+                    }
+                }
+                // Interactive Background Blur Focus Ring
+                if (isBlurFocusMode && !isRetouchMode && !isSplitView && !isCropMode && !isComparing) {
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("blur_focus_overlay")
+                    ) {
+                        val fCx = imgLeft + blurFocusX.coerceIn(0f, 1f) * renderW
+                        val fCy = imgTop + blurFocusY.coerceIn(0f, 1f) * renderH
+                        val rx = (blurFocusRadius.coerceIn(0.15f, 0.70f) * min(renderW, renderH)).coerceAtLeast(16f)
+                        val ry = rx * 1.15f
+                        drawOval(
+                            color = AccentCyan.copy(alpha = 0.55f),
+                            topLeft = Offset(fCx - rx, fCy - ry),
+                            size = Size(rx * 2f, ry * 2f),
+                            style = Stroke(width = 1.6.dp.toPx())
+                        )
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.85f),
+                            radius = 6.dp.toPx(),
+                            center = Offset(fCx, fCy),
+                            style = Stroke(width = 1.5.dp.toPx())
+                        )
+                        drawCircle(
+                            color = AccentCyan,
+                            radius = 2.5.dp.toPx(),
+                            center = Offset(fCx, fCy)
                         )
                     }
                 }

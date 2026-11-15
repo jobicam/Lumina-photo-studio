@@ -60,6 +60,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.AdjustCategory
 import com.example.model.AdjustmentState
 import com.example.model.AppLanguage
 import com.example.model.CropAspectRatio
@@ -305,6 +306,7 @@ fun RetouchPanel(
     onDetectBlemishes: () -> Unit = {},
     onHealAllBlemishes: () -> Unit = {},
     onClearBlemishSuggestions: () -> Unit = {},
+    onOpenBackgroundBlur: () -> Unit = {},
     modifier: Modifier = Modifier,
     lang: AppLanguage = AppLanguage.SYSTEM,
     hapticFeedback: Boolean = true
@@ -377,6 +379,35 @@ fun RetouchPanel(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = AccentPink,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+
+            // Quick Background Blur shortcut
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(AccentCyan.copy(alpha = 0.16f))
+                    .border(1.dp, AccentCyan.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .clickable(onClick = onOpenBackgroundBlur)
+                    .padding(horizontal = 9.dp, vertical = 6.dp)
+                    .testTag("quick_blur_bg_button")
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CenterFocusStrong,
+                        contentDescription = AppStrings.quickBlurBg(lang),
+                        tint = AccentCyan,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = AppStrings.quickBlurBg(lang),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentCyan,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -719,16 +750,11 @@ fun RetouchPanel(
 // -------------------------------------------------------------
 // 3. ADJUST PANEL
 // -------------------------------------------------------------
-enum class AdjustCategory(val label: String) {
-    LIGHT("Light"),
-    COLOR("Color"),
-    DETAIL("Detail"),
-    EFFECTS("Effects")
-}
-
 @Composable
 fun AdjustPanel(
     adjustments: AdjustmentState,
+    activeCategory: AdjustCategory = AdjustCategory.LIGHT,
+    onSelectCategory: (AdjustCategory) -> Unit = {},
     onAdjustmentsChanged: ((AdjustmentState) -> AdjustmentState) -> Unit,
     onReset: () -> Unit,
     onAutoEnhance: () -> Unit = {},
@@ -737,8 +763,6 @@ fun AdjustPanel(
     hapticFeedback: Boolean = true,
     onEditFinished: () -> Unit = {}
 ) {
-    var activeCategory by remember { mutableStateOf(AdjustCategory.LIGHT) }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -771,7 +795,7 @@ fun AdjustPanel(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (isSelected) AccentCyan else StudioCard)
-                            .clickable { activeCategory = cat }
+                            .clickable { onSelectCategory(cat) }
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                             .testTag("adjust_cat_${cat.name.lowercase()}")
                     ) {
@@ -962,6 +986,113 @@ fun AdjustPanel(
                 }
                 AdjustCategory.EFFECTS -> {
                     AdjustSliderItem(
+                        label = AppStrings.sliderBackgroundBlur(lang),
+                        testTagKey = "background_blur",
+                        value = adjustments.backgroundBlur,
+                        range = 0f..100f,
+                        hapticFeedback = hapticFeedback,
+                        onEditFinished = onEditFinished,
+                        onValueChange = { v -> onAdjustmentsChanged { it.copy(backgroundBlur = v) } }
+                    )
+                    if (adjustments.backgroundBlur > 0f) {
+                        AdjustSliderItem(
+                            label = AppStrings.sliderFocusSize(lang),
+                            testTagKey = "blur_focus_size",
+                            value = (adjustments.blurFocusRadius * 100f).coerceIn(15f, 70f),
+                            range = 15f..70f,
+                            defaultValue = 32f,
+                            hapticFeedback = hapticFeedback,
+                            onEditFinished = onEditFinished,
+                            onValueChange = { v ->
+                                onAdjustmentsChanged {
+                                    it.copy(blurFocusRadius = (v / 100f).coerceIn(0.15f, 0.70f))
+                                }
+                            }
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val protectActive = adjustments.blurProtectSubject
+                            Box(
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (protectActive) AccentCyan.copy(alpha = 0.2f) else StudioCard)
+                                    .border(
+                                        1.dp,
+                                        if (protectActive) AccentCyan else StudioBorder,
+                                        RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable {
+                                        onAdjustmentsChanged { it.copy(blurProtectSubject = !it.blurProtectSubject) }
+                                        onEditFinished()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                                    .testTag("blur_protect_subject_toggle")
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Face,
+                                        contentDescription = AppStrings.protectSubjectLabel(lang),
+                                        tint = if (protectActive) AccentCyan else TextSecondary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = AppStrings.protectSubjectLabel(lang),
+                                        color = if (protectActive) AccentCyan else TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (protectActive) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(StudioSurfaceVariant)
+                                    .border(1.dp, StudioBorder, RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        onAdjustmentsChanged {
+                                            it.copy(
+                                                blurFocusX = 0.50f,
+                                                blurFocusY = 0.42f,
+                                                blurFocusRadius = 0.32f
+                                            )
+                                        }
+                                        onEditFinished()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp)
+                                    .testTag("blur_reset_focus_button")
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.CenterFocusStrong,
+                                        contentDescription = AppStrings.blurFocusHint(lang),
+                                        tint = TextPrimary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = AppStrings.blurFocusHint(lang),
+                                        color = TextPrimary,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    AdjustSliderItem(
                         label = AppStrings.sliderSoftGlow(lang),
                         testTagKey = "soft_glow",
                         value = adjustments.softGlow,
@@ -1009,6 +1140,7 @@ private fun AdjustSliderItem(
     testTagKey: String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
+    defaultValue: Float = 0f,
     hapticFeedback: Boolean = true,
     onEditFinished: () -> Unit = {},
     onValueChange: (Float) -> Unit
@@ -1051,14 +1183,14 @@ private fun AdjustSliderItem(
                 .testTag("slider_$testTagKey")
         )
         Text(
-            text = "${if (value > 0) "+" else ""}${value.toInt()}",
+            text = "${if (value > 0 && range.start < 0f) "+" else ""}${value.toInt()}",
             fontSize = 12.sp,
-            color = if (value != 0f) AccentCyan else TextSecondary,
-            fontWeight = if (value != 0f) FontWeight.Bold else FontWeight.Normal,
+            color = if (value != defaultValue) AccentCyan else TextSecondary,
+            fontWeight = if (value != defaultValue) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier
                 .width(40.dp)
                 .clickable {
-                    onValueChange(0f)
+                    onValueChange(defaultValue)
                     onEditFinished()
                 }
         )

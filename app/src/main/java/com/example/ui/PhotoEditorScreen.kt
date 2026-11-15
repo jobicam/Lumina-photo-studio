@@ -205,6 +205,10 @@ fun PhotoEditorScreen(
                     )
                 }
 
+                val isBlurFocusMode = uiState.activeTab == EditorTab.ADJUST &&
+                    uiState.activeAdjustCategory == com.example.model.AdjustCategory.EFFECTS &&
+                    uiState.adjustments.backgroundBlur > 0f
+
                 PhotoCanvas(
                     displayBitmap = uiState.displayBitmap,
                     originalBitmap = uiState.originalBitmap,
@@ -219,8 +223,13 @@ fun PhotoEditorScreen(
                     cropRect = uiState.pendingCropRect,
                     lockedCropRatio = lockedCropRatio,
                     suggestedBlemishes = uiState.suggestedBlemishes,
+                    isBlurFocusMode = isBlurFocusMode,
+                    blurFocusX = uiState.adjustments.blurFocusX,
+                    blurFocusY = uiState.adjustments.blurFocusY,
+                    blurFocusRadius = uiState.adjustments.blurFocusRadius,
                     lang = lang,
                     onCropRectChanged = { viewModel.updatePendingCropRect(it) },
+                    onBlurFocusChanged = { nx, ny -> viewModel.setBlurFocusPoint(nx, ny) },
                     onSplitRatioChanged = { viewModel.setSplitRatio(it) },
                     onRetouchStroke = { viewModel.applyRetouchStroke(it) }
                 )
@@ -394,7 +403,11 @@ fun PhotoEditorScreen(
                                 uiState.activeRetouchTool == com.example.model.RetouchType.SKIN_SMOOTH ||
                                 uiState.activeRetouchTool == com.example.model.RetouchType.BLEMISH
                             ) 276.dp else 215.dp
-                            EditorTab.ADJUST, EditorTab.HSL -> 215.dp
+                            EditorTab.ADJUST -> if (
+                                uiState.activeAdjustCategory == com.example.model.AdjustCategory.EFFECTS &&
+                                uiState.adjustments.backgroundBlur > 0f
+                            ) 264.dp else 220.dp
+                            EditorTab.HSL -> 215.dp
                             EditorTab.FILTERS -> 185.dp
                         },
                         label = "tool_drawer_height"
@@ -433,11 +446,14 @@ fun PhotoEditorScreen(
                                 onDetectBlemishes = { viewModel.detectBlemishes() },
                                 onHealAllBlemishes = { viewModel.healAllSuggestedBlemishes() },
                                 onClearBlemishSuggestions = { viewModel.clearBlemishSuggestions() },
+                                onOpenBackgroundBlur = { viewModel.openBackgroundBlurTool() },
                                 lang = lang,
                                 hapticFeedback = hapticsEnabled
                             )
                             EditorTab.ADJUST -> AdjustPanel(
                                 adjustments = uiState.adjustments,
+                                activeCategory = uiState.activeAdjustCategory,
+                                onSelectCategory = { viewModel.selectAdjustCategory(it) },
                                 onAdjustmentsChanged = { viewModel.updateAdjustments(it) },
                                 onReset = { viewModel.resetAdjustments() },
                                 onAutoEnhance = { viewModel.autoEnhance() },

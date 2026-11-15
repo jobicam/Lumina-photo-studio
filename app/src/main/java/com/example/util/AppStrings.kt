@@ -38,7 +38,7 @@ object AppStrings {
     fun portraitBadge(lang: AppLanguage) = if (isKhmer(lang)) "មុខ & ស្បែក" else "Face & Skin"
     fun mountainSunset(lang: AppLanguage) = if (isKhmer(lang)) "ថ្ងៃលិចលើភ្នំ" else "Mountain Sunset"
     fun sunsetBadge(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ & តម្រង" else "Color & Filter"
-    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.6" else "STUDIO CAPABILITIES v2.6"
+    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.7" else "STUDIO CAPABILITIES v2.7"
 
     // Feature Banners
     fun skinSmoothBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "រលោងស្បែក Gaussian & រក្សាភាពលម្អិត" else "Gaussian Mask Skin Smoothing"
@@ -272,6 +272,12 @@ object AppStrings {
     fun sliderVibrance(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ស្រស់ថ្លា" else "Vibrance"
     fun sliderClarity(lang: AppLanguage) = if (isKhmer(lang)) "ភាពច្បាស់ល្អិត" else "Clarity"
     fun sliderSharpness(lang: AppLanguage) = if (isKhmer(lang)) "ភាពមុតស្រួច" else "Sharpness"
+    fun sliderBackgroundBlur(lang: AppLanguage) = if (isKhmer(lang)) "ព្រាលផ្ទៃក្រោយ" else "Blur BG"
+    fun sliderFocusSize(lang: AppLanguage) = if (isKhmer(lang)) "ទំហំផ្ដោត" else "Focus Size"
+    fun protectSubjectLabel(lang: AppLanguage) = if (isKhmer(lang)) "រក្សាប្រធានបទច្បាស់" else "Protect Subject"
+    fun blurFocusHint(lang: AppLanguage) = if (isKhmer(lang)) "ចុចលើរូបដើម្បីប្ដូរចំណុចផ្ដោត" else "Tap photo to move focus"
+    fun quickBlurBg(lang: AppLanguage) = if (isKhmer(lang)) "ព្រាលផ្ទៃក្រោយ" else "Blur BG"
+    fun statusBackgroundBlurEnabled(lang: AppLanguage) = if (isKhmer(lang)) "បានបើកភាពព្រាលផ្ទៃខាងក្រោយ — ចុចលើរូបដើម្បីកំណត់ចំណុចផ្ដោត" else "Background blur active — tap photo to set focus point"
     fun sliderSoftGlow(lang: AppLanguage) = if (isKhmer(lang)) "ពន្លឺភ្លឺស្រទន់" else "Soft Glow"
     fun sliderVignette(lang: AppLanguage) = if (isKhmer(lang)) "ស្រមោលគែម" else "Vignette"
     fun sliderGrain(lang: AppLanguage) = if (isKhmer(lang)) "គ្រាប់ហ្វីល" else "Film Grain"

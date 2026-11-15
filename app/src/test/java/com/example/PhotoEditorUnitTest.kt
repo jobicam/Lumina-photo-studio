@@ -273,7 +273,7 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.skinSmoothBannerTitle(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.6"))
+        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.7"))
         assertTrue(com.example.util.AppStrings.zoomIn(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomIn(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomOut(en).isNotBlank())
@@ -461,5 +461,26 @@ class PhotoEditorUnitTest {
             repoAccessible = false
         )
         assertTrue(msgPrivate.contains("Private"))
+    }
+
+    @Test
+    fun testBackgroundBlur_stateDefaultsAndBilingualStrings() {
+        val base = AdjustmentState()
+        assertTrue(base.isDefault)
+        // Moving focus center while blur is 0 should still count as default (no visible blur applied)
+        assertTrue(base.copy(blurFocusX = 0.25f, blurFocusY = 0.75f, blurFocusRadius = 0.45f).isDefault)
+        // Enabling background blur marks adjustments non-default
+        assertFalse(base.copy(backgroundBlur = 50f).isDefault)
+
+        val en = com.example.model.AppLanguage.ENGLISH
+        val km = com.example.model.AppLanguage.KHMER
+        assertTrue(com.example.util.AppStrings.sliderBackgroundBlur(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.sliderBackgroundBlur(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.sliderFocusSize(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.sliderFocusSize(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.protectSubjectLabel(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.protectSubjectLabel(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.blurFocusHint(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.blurFocusHint(km).isNotBlank())
     }
 }

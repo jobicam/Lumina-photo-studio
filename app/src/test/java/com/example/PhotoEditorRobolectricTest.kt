@@ -400,4 +400,105 @@ class PhotoEditorRobolectricTest {
         val afterHeal = com.example.processing.BlemishDetector.detectBlemishes(healed, sensitivity = 0.65f)
         assertTrue("Re-scanning after healing all suggested spots should find fewer/no spots (got ${afterHeal.size})", afterHeal.isEmpty())
     }
+
+    @Test
+    fun testBackgroundBlur_blursOuterBackgroundWhileKeepingFocusSharp() {
+        val bmp = Bitmap.createBitmap(120, 120, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 120) {
+            for (x in 0 until 120) {
+                // High-contrast 4px checkerboard across entire frame (red/blue & bright/dark)
+                val bright = (((x / 2) + (y / 2)) % 2) == 0
+                val c = if (bright) Color.rgb(220, 225, 235) else Color.rgb(30, 50, 180)
+                bmp.setPixel(x, y, c)
+            }
+        }
+
+        val blurred = BitmapProcessor.renderAdjustments(
+            source = bmp,
+            adjustments = AdjustmentState(
+                backgroundBlur = 90f,
+                blurFocusX = 0.5f,
+                blurFocusY = 0.5f,
+                blurFocusRadius = 0.24f,
+                blurProtectSubject = false
+            )
+        )
+
+        fun patchContrast(b: Bitmap, startX: Int, startY: Int): Int {
+            var maxL = 0
+            var minL = 255
+            for (dy in 0 until 8) {
+                for (dx in 0 until 8) {
+                    val p = b.getPixel(startX + dx, startY + dy)
+                    val lum = (Color.red(p) + Color.green(p) + Color.blue(p)) / 3
+                    if (lum > maxL) maxL = lum
+                    if (lum < minL) minL = lum
+                }
+            }
+            return maxL - minL
+        }
+
+        val centerContrast = patchContrast(blurred, 56, 56)
+        val cornerContrast = patchContrast(blurred, 6, 6)
+
+        assertTrue("Focus center should stay crisp (contrast=$centerContrast)", centerContrast > 120)
+        assertTrue(
+            "Background corner should be heavily blurred compared to focus center (corner=$cornerContrast, center=$centerContrast)",
+            cornerContrast < centerContrast / 2
+        )
+    }
+
+    @Test
+    fun testBackgroundBlur_protectSubjectKeepsOffCenterSkinSharp() {
+        val bmp = Bitmap.createBitmap(120, 120, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 120) {
+            for (x in 0 until 120) {
+                if (x in 12..36 && y in 72..96) {
+                    // Textured skin patch far from focal center (0.8, 0.2)
+                    val delta = if (((x / 2) + (y / 2)) % 2 == 0) 24 else -24
+                    bmp.setPixel(x, y, Color.rgb(212 + delta, 162 + delta, 138 + delta))
+                } else {
+                    val bright = (((x / 2) + (y / 2)) % 2) == 0
+                    bmp.setPixel(x, y, if (bright) Color.rgb(210, 220, 235) else Color.rgb(25, 70, 195))
+                }
+            }
+        }
+
+        val unprotected = BitmapProcessor.applyBackgroundBlur(
+            source = bmp,
+            blurStrength = 90f,
+            focusX = 0.80f,
+            focusY = 0.20f,
+            focusRadius = 0.20f,
+            protectSubject = false
+        )
+        val protectedBmp = BitmapProcessor.applyBackgroundBlur(
+            source = bmp,
+            blurStrength = 90f,
+            focusX = 0.80f,
+            focusY = 0.20f,
+            focusRadius = 0.20f,
+            protectSubject = true
+        )
+
+        fun regionRange(b: Bitmap): Int {
+            var maxR = 0
+            var minR = 255
+            for (y in 78..90) {
+                for (x in 18..30) {
+                    val r = Color.red(b.getPixel(x, y))
+                    if (r > maxR) maxR = r
+                    if (r < minR) minR = r
+                }
+            }
+            return maxR - minR
+        }
+
+        val protectedRange = regionRange(protectedBmp)
+        val unprotectedRange = regionRange(unprotected)
+        assertTrue(
+            "Protect Subject should preserve skin detail ($protectedRange) vs unprotected ($unprotectedRange)",
+            protectedRange > unprotectedRange + 15
+        )
+    }
 }

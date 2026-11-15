@@ -1,7 +1,7 @@
 {
-  "versionCode": 12,
-  "versionName": "2.6.0",
-  "releaseNotes": "Added precision photo zoom in/out controls (1.0x-6.0x) with two-finger retouch pinch/pan, automated skin-region blemish blob detection with 1-tap Heal All, and upgraded spot healing blend.",
+  "versionCode": 13,
+  "versionName": "2.7.0",
+  "releaseNotes": "Added on-device Background Blur (Portrait Bokeh) with tap-to-focus, Focus Size & Protect Subject controls, alongside precision zoom (1.0x-6.0x) and automated skin blemish detection.",
   "downloadUrl": "",
   "mandatory": false
 }

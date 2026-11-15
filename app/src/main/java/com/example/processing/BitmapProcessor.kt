@@ -83,6 +83,18 @@ object BitmapProcessor {
             applySharpnessInPlace(output, adjustments.sharpness)
         }
 
+        // 3b. Portrait / Radial Background Blur
+        if (adjustments.backgroundBlur > 0f) {
+            applyBackgroundBlurInPlace(
+                bitmap = output,
+                blurStrength = adjustments.backgroundBlur,
+                focusX = adjustments.blurFocusX,
+                focusY = adjustments.blurFocusY,
+                focusRadius = adjustments.blurFocusRadius,
+                protectSubject = adjustments.blurProtectSubject
+            )
+        }
+
         // 4. Soft Dream Glow (Halation)
         if (adjustments.softGlow > 0f) {
             applySoftGlowInPlace(output, adjustments.softGlow)
@@ -306,6 +318,316 @@ object BitmapProcessor {
                 downscaled.recycle()
             }
         }
+    }
+
+    /**
+     * Applies an optical depth-of-field background blur to [source] while keeping the focal
+     * region (and optionally detected portrait skin/foreground subjects) crisp and sharp.
+     */
+    fun applyBackgroundBlur(
+        source: Bitmap,
+        blurStrength: Float,
+        focusX: Float = 0.50f,
+        focusY: Float = 0.42f,
+        focusRadius: Float = 0.32f,
+        protectSubject: Boolean = true
+    ): Bitmap {
+        val out = source.copy(Bitmap.Config.ARGB_8888, true)
+        if (blurStrength > 0f) {
+            applyBackgroundBlurInPlace(
+                bitmap = out,
+                blurStrength = blurStrength,
+                focusX = focusX,
+                focusY = focusY,
+                focusRadius = focusRadius,
+                protectSubject = protectSubject
+            )
+        }
+        return out
+    }
+
+    /**
+     * Fast two-pass separable bokeh blur blended via a feathered radial + optional subject-skin mask.
+     */
+    private fun applyBackgroundBlurInPlace(
+        bitmap: Bitmap,
+        blurStrength: Float,
+        focusX: Float,
+        focusY: Float,
+        focusRadius: Float,
+        protectSubject: Boolean
+    ) {
+        val strengthNorm = (blurStrength / 100f).coerceIn(0f, 1f)
+        if (strengthNorm <= 0.005f) return
+
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w < 4 || h < 4) return
+
+        val maxDim = max(w, h)
+        val scaleDiv = when {
+            maxDim >= 1200 -> 4
+            maxDim >= 480 -> 3
+            maxDim >= 140 -> 2
+            else -> 1
+        }
+        val smallW = (w / scaleDiv).coerceAtLeast(min(w, 24)).coerceAtMost(360)
+        val smallH = (h / scaleDiv).coerceAtLeast(min(h, 24)).coerceAtMost(360)
+
+        val smallBmp = if (smallW == w && smallH == h) {
+            bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        } else {
+            Bitmap.createScaledBitmap(bitmap, smallW, smallH, true)
+        }
+        var upscaledBlur: Bitmap? = null
+
+        try {
+            val smallCount = smallW * smallH
+            val smallPixels = IntArray(smallCount)
+            smallBmp.getPixels(smallPixels, 0, smallW, 0, 0, smallW, smallH)
+
+            // Build feathered skin/subject foreground mask before blurring smallPixels
+            val subjectMask: FloatArray? = if (protectSubject) {
+                val raw = FloatArray(smallCount)
+                for (i in 0 until smallCount) {
+                    val c = smallPixels[i]
+                    val r = (c shr 16) and 0xFF
+                    val g = (c shr 8) and 0xFF
+                    val b = c and 0xFF
+                    raw[i] = computeSkinProbability(r, g, b)
+                }
+                val dilated = dilateMask(raw, smallW, smallH, radius = 2)
+                boxBlurFloatMask(dilated, smallW, smallH, radius = 2)
+            } else {
+                null
+            }
+
+            // Two separable box blur passes approximate a smooth Gaussian bokeh kernel
+            val boxRadius = (1f + strengthNorm * 7f).roundToInt()
+                .coerceIn(1, max(1, min(smallW, smallH) / 3))
+            separableBoxBlurArgb(smallPixels, smallW, smallH, boxRadius)
+            separableBoxBlurArgb(smallPixels, smallW, smallH, boxRadius)
+
+            val mutableSmall = if (smallBmp.isMutable) {
+                smallBmp
+            } else {
+                smallBmp.copy(Bitmap.Config.ARGB_8888, true)
+            }
+            mutableSmall.setPixels(smallPixels, 0, smallW, 0, 0, smallW, smallH)
+
+            upscaledBlur = if (smallW == w && smallH == h) {
+                mutableSmall
+            } else {
+                Bitmap.createScaledBitmap(mutableSmall, w, h, true).also {
+                    if (mutableSmall !== smallBmp && !mutableSmall.isRecycled) {
+                        mutableSmall.recycle()
+                    }
+                }
+            }
+
+            val total = w * h
+            val origPixels = IntArray(total)
+            val blurPixels = IntArray(total)
+            bitmap.getPixels(origPixels, 0, w, 0, 0, w, h)
+            upscaledBlur.getPixels(blurPixels, 0, w, 0, 0, w, h)
+
+            val cx = focusX.coerceIn(0f, 1f) * (w - 1).coerceAtLeast(1)
+            val cy = focusY.coerceIn(0f, 1f) * (h - 1).coerceAtLeast(1)
+            val minDim = min(w, h).toFloat().coerceAtLeast(1f)
+            val rx = (focusRadius.coerceIn(0.10f, 0.85f) * minDim).coerceAtLeast(2f)
+            val ry = rx * 1.15f
+            val invRx = 1f / rx
+            val invRy = 1f / ry
+            val blurBlendScale = (0.30f + 0.70f * strengthNorm).coerceIn(0f, 1f)
+            val invW = if (w > 1) 1f / (w - 1) else 0f
+            val invH = if (h > 1) 1f / (h - 1) else 0f
+
+            for (y in 0 until h) {
+                val dyNorm = (y - cy) * invRy
+                val dySq = dyNorm * dyNorm
+                val row = y * w
+                val v = y * invH
+                for (x in 0 until w) {
+                    val dxNorm = (x - cx) * invRx
+                    val normDist = sqrt(dxNorm * dxNorm + dySq)
+
+                    val radialSharp = when {
+                        normDist <= 0.65f -> 1f
+                        normDist >= 1.45f -> 0f
+                        else -> {
+                            val t = (normDist - 0.65f) / 0.80f
+                            1f - t * t * (3f - 2f * t)
+                        }
+                    }
+
+                    val subjectSharp = if (subjectMask != null) {
+                        sampleMaskBilinear(subjectMask, smallW, smallH, x * invW, v)
+                    } else {
+                        0f
+                    }
+
+                    val sharpWeight = max(radialSharp, subjectSharp).coerceIn(0f, 1f)
+                    val blurWeight = ((1f - sharpWeight) * blurBlendScale).coerceIn(0f, 1f)
+                    if (blurWeight <= 0.002f) continue
+
+                    val idx = row + x
+                    val orig = origPixels[idx]
+                    val blur = blurPixels[idx]
+                    val oA = (orig ushr 24) and 0xFF
+                    val oR = (orig shr 16) and 0xFF
+                    val oG = (orig shr 8) and 0xFF
+                    val oB = orig and 0xFF
+
+                    val bR = (blur shr 16) and 0xFF
+                    val bG = (blur shr 8) and 0xFF
+                    val bB = blur and 0xFF
+
+                    val invWeight = 1f - blurWeight
+                    val outR = (oR * invWeight + bR * blurWeight).roundToInt().coerceIn(0, 255)
+                    val outG = (oG * invWeight + bG * blurWeight).roundToInt().coerceIn(0, 255)
+                    val outB = (oB * invWeight + bB * blurWeight).roundToInt().coerceIn(0, 255)
+                    origPixels[idx] = (oA shl 24) or (outR shl 16) or (outG shl 8) or outB
+                }
+            }
+
+            bitmap.setPixels(origPixels, 0, w, 0, 0, w, h)
+        } finally {
+            if (upscaledBlur != null && upscaledBlur !== smallBmp && upscaledBlur !== bitmap && !upscaledBlur.isRecycled) {
+                upscaledBlur.recycle()
+            }
+            if (smallBmp !== bitmap && !smallBmp.isRecycled) {
+                smallBmp.recycle()
+            }
+        }
+    }
+
+    /**
+     * O(W * H) sliding-window separable box blur on ARGB pixel array in-place.
+     */
+    private fun separableBoxBlurArgb(pixels: IntArray, width: Int, height: Int, radius: Int) {
+        if (radius <= 0 || width <= 1 || height <= 1) return
+        val temp = IntArray(width * height)
+        val windowSize = radius * 2 + 1
+
+        // Horizontal pass -> temp
+        for (y in 0 until height) {
+            val row = y * width
+            var sumR = 0
+            var sumG = 0
+            var sumB = 0
+            for (k in -radius..radius) {
+                val p = pixels[row + k.coerceIn(0, width - 1)]
+                sumR += (p shr 16) and 0xFF
+                sumG += (p shr 8) and 0xFF
+                sumB += p and 0xFF
+            }
+            for (x in 0 until width) {
+                val a = (pixels[row + x] ushr 24) and 0xFF
+                temp[row + x] = (a shl 24) or
+                    ((sumR / windowSize) shl 16) or
+                    ((sumG / windowSize) shl 8) or
+                    (sumB / windowSize)
+                val outP = pixels[row + (x - radius).coerceIn(0, width - 1)]
+                val inP = pixels[row + (x + radius + 1).coerceIn(0, width - 1)]
+                sumR += ((inP shr 16) and 0xFF) - ((outP shr 16) and 0xFF)
+                sumG += ((inP shr 8) and 0xFF) - ((outP shr 8) and 0xFF)
+                sumB += (inP and 0xFF) - (outP and 0xFF)
+            }
+        }
+
+        // Vertical pass -> pixels
+        for (x in 0 until width) {
+            var sumR = 0
+            var sumG = 0
+            var sumB = 0
+            for (k in -radius..radius) {
+                val p = temp[k.coerceIn(0, height - 1) * width + x]
+                sumR += (p shr 16) and 0xFF
+                sumG += (p shr 8) and 0xFF
+                sumB += p and 0xFF
+            }
+            for (y in 0 until height) {
+                val idx = y * width + x
+                val a = (temp[idx] ushr 24) and 0xFF
+                pixels[idx] = (a shl 24) or
+                    ((sumR / windowSize) shl 16) or
+                    ((sumG / windowSize) shl 8) or
+                    (sumB / windowSize)
+                val outP = temp[(y - radius).coerceIn(0, height - 1) * width + x]
+                val inP = temp[(y + radius + 1).coerceIn(0, height - 1) * width + x]
+                sumR += ((inP shr 16) and 0xFF) - ((outP shr 16) and 0xFF)
+                sumG += ((inP shr 8) and 0xFF) - ((outP shr 8) and 0xFF)
+                sumB += (inP and 0xFF) - (outP and 0xFF)
+            }
+        }
+    }
+
+    private fun dilateMask(mask: FloatArray, width: Int, height: Int, radius: Int): FloatArray {
+        val out = FloatArray(mask.size)
+        for (y in 0 until height) {
+            val y0 = (y - radius).coerceAtLeast(0)
+            val y1 = (y + radius).coerceAtMost(height - 1)
+            for (x in 0 until width) {
+                val x0 = (x - radius).coerceAtLeast(0)
+                val x1 = (x + radius).coerceAtMost(width - 1)
+                var maxVal = 0f
+                for (ny in y0..y1) {
+                    val nRow = ny * width
+                    for (nx in x0..x1) {
+                        val v = mask[nRow + nx]
+                        if (v > maxVal) maxVal = v
+                    }
+                }
+                out[y * width + x] = maxVal
+            }
+        }
+        return out
+    }
+
+    private fun boxBlurFloatMask(mask: FloatArray, width: Int, height: Int, radius: Int): FloatArray {
+        val temp = FloatArray(mask.size)
+        val out = FloatArray(mask.size)
+        val win = radius * 2 + 1
+        for (y in 0 until height) {
+            val row = y * width
+            for (x in 0 until width) {
+                var sum = 0f
+                for (dx in -radius..radius) {
+                    sum += mask[row + (x + dx).coerceIn(0, width - 1)]
+                }
+                temp[row + x] = sum / win
+            }
+        }
+        for (y in 0 until height) {
+            val row = y * width
+            for (x in 0 until width) {
+                var sum = 0f
+                for (dy in -radius..radius) {
+                    sum += temp[(y + dy).coerceIn(0, height - 1) * width + x]
+                }
+                out[row + x] = (sum / win).coerceIn(0f, 1f)
+            }
+        }
+        return out
+    }
+
+    private fun sampleMaskBilinear(mask: FloatArray, width: Int, height: Int, normX: Float, normY: Float): Float {
+        val gx = normX.coerceIn(0f, 1f) * (width - 1)
+        val gy = normY.coerceIn(0f, 1f) * (height - 1)
+        val x0 = gx.toInt().coerceIn(0, width - 1)
+        val y0 = gy.toInt().coerceIn(0, height - 1)
+        val x1 = (x0 + 1).coerceAtMost(width - 1)
+        val y1 = (y0 + 1).coerceAtMost(height - 1)
+        val fx = gx - x0
+        val fy = gy - y0
+
+        val v00 = mask[y0 * width + x0]
+        val v10 = mask[y0 * width + x1]
+        val v01 = mask[y1 * width + x0]
+        val v11 = mask[y1 * width + x1]
+        val top = v00 + (v10 - v00) * fx
+        val bottom = v01 + (v11 - v01) * fx
+        return (top + (bottom - top) * fy).coerceIn(0f, 1f)
     }
 
     /**
