@@ -179,7 +179,7 @@ object AppStrings {
     fun checkAgain(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យម្តងទៀត" else "Check Again"
     fun downloadUpdate(lang: AppLanguage) = if (isKhmer(lang)) "បើកទាញយកកំណែថ្មី" else "Get Update"
     fun downloadApkUpdate(lang: AppLanguage) = if (isKhmer(lang)) "ទាញយក APK កំណែថ្មីផ្ទាល់" else "Download APK Update"
-    fun directUpdateHint(lang: AppLanguage) = if (isKhmer(lang)) "បើកតំណទាញយកដើម្បីដំឡើងលើកំណែចាស់ដោយរក្សាទុកការកំណត់របស់អ្នក" else "Downloads directly in your browser so you can install right over your current version"
+    fun directUpdateHint(lang: AppLanguage) = if (isKhmer(lang)) "បើកតំណទាញយកដើម្បីដំឡើងលើកំណែចាស់។ ប្រសិនបើ Android បដិសេធការអាប់ដេតដោយសារហត្ថលេខាកម្មវិធីខុសគ្នា សូមលុបកំណែចាស់ចេញម្តងសិនមុនដំឡើង។" else "Downloads directly in your browser so you can install right over your current version. If Android rejects the update due to a mismatched signing key, uninstall the previous build once before installing."
     fun linkCopiedToast(lang: AppLanguage) = if (isKhmer(lang)) "បានចម្លងតំណទាញយកហើយ" else "Download link copied"
     fun noDownloadLinkHint(lang: AppLanguage) = if (isKhmer(lang)) "រកឃើញកំណែថ្មី ប៉ុន្តែមិនទាន់មានតំណ APK ភ្ជាប់មកជាមួយទេ។" else "New version detected, but this release has no APK download link attached yet."
     fun autoCheckUpdates(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យកំណែថ្មីស្វ័យប្រវត្តិ" else "Auto-Check on Launch"
