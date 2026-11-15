@@ -47,8 +47,22 @@ object AppUpdateChecker {
     fun normalizeFeedUrl(rawUrl: String): String {
         val trimmed = rawUrl.trim()
         if (trimmed.isEmpty()) return ""
+
+        // Convert GitHub file viewer URL (.../blob/branch/path) to raw.githubusercontent.com
+        val githubBlobRegex = Regex(
+            "^https?://(?:www\\.)?github\\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$",
+            RegexOption.IGNORE_CASE
+        )
+        githubBlobRegex.matchEntire(trimmed)?.let { blobMatch ->
+            val owner = blobMatch.groupValues[1]
+            val repo = blobMatch.groupValues[2]
+            val branch = blobMatch.groupValues[3]
+            val path = blobMatch.groupValues[4]
+            return "https://raw.githubusercontent.com/$owner/$repo/$branch/$path"
+        }
+
         val githubRepoRegex = Regex(
-            "^https?://(?:www\\.)?github\\.com/([^/]+)/([^/]+?)(?:\\.git)?(?:/releases(?:/latest|/tag/[^/]+)?)?/?$",
+            "^https?://(?:www\\.)?github\\.com/([^/]+)/([^/]+?)(?:\\.git)?(?:/(?:releases(?:/latest|/tag/[^/]+)?|tags))?/?$",
             RegexOption.IGNORE_CASE
         )
         val match = githubRepoRegex.matchEntire(trimmed)
@@ -160,7 +174,7 @@ object AppUpdateChecker {
     fun buildVersionManifestJson(
         versionCode: Long = BuildConfig.VERSION_CODE.toLong(),
         versionName: String = BuildConfig.VERSION_NAME,
-        releaseNotes: String = "Localized Gaussian blur mask skin smoothing with Detail preservation slider, interactive cropping, and update flow.",
+        releaseNotes: String = "Photo Zoom In/Out (1.0x-6.0x) with two-finger retouch pan, automated skin blemish detection, and upgraded spot healing.",
         downloadUrl: String = ""
     ): String {
         val adapter = moshi.adapter<Map<String, Any>>(mapType).indent("  ")
@@ -285,11 +299,16 @@ object AppUpdateChecker {
         return try {
             val primaryResult = fetchManifest(trimmedUrl, currentName)
             val resolvedManifest = if (primaryResult.httpCode == 404) {
-                tryGitHub404Fallback(trimmedUrl, currentName)
-                    ?: return UpdateStatus.Error(
-                        message = buildFriendly404Message(trimmedUrl),
+                val fallback = tryGitHub404Fallback(trimmedUrl, currentName)
+                if (fallback != null) {
+                    fallback
+                } else {
+                    val repoAccessible = checkGitHubRepoAccessible(trimmedUrl, currentName)
+                    return UpdateStatus.Error(
+                        message = buildFriendly404Message(trimmedUrl, repoAccessible),
                         checkedAtMillis = now
                     )
+                }
             } else if (!primaryResult.isSuccessful) {
                 return UpdateStatus.Error(
                     message = "Update server returned HTTP ${primaryResult.httpCode}",
@@ -375,25 +394,55 @@ object AppUpdateChecker {
             parseManifestJson(tagsRes.body, fallbackReleaseUrl = releasesPageUrl)?.let { return it }
         }
 
-        // 3. Check raw version.json on main branch as final fallback
-        val rawManifestRes = fetchManifest("https://raw.githubusercontent.com/$owner/$repo/main/version.json", currentName)
-        if (rawManifestRes.isSuccessful) {
-            parseManifestJson(rawManifestRes.body, fallbackReleaseUrl = releasesPageUrl)?.let { return it }
+        // 3. Check direct release download asset (works even if GitHub API rate-limits or differs)
+        val directAssetRes = fetchManifest("https://github.com/$owner/$repo/releases/latest/download/version.json", currentName)
+        if (directAssetRes.isSuccessful) {
+            parseManifestJson(directAssetRes.body, fallbackReleaseUrl = releasesPageUrl)?.let { return it }
+        }
+
+        // 4. Check raw version.json across HEAD / main / master branches
+        val rawCandidates = listOf(
+            "https://raw.githubusercontent.com/$owner/$repo/HEAD/version.json",
+            "https://raw.githubusercontent.com/$owner/$repo/main/version.json",
+            "https://raw.githubusercontent.com/$owner/$repo/master/version.json"
+        )
+        for (rawUrl in rawCandidates) {
+            val rawRes = fetchManifest(rawUrl, currentName)
+            if (rawRes.isSuccessful) {
+                parseManifestJson(rawRes.body, fallbackReleaseUrl = releasesPageUrl)?.let { return it }
+            }
         }
 
         return null
     }
 
-    private fun buildFriendly404Message(url: String): String {
+    private fun checkGitHubRepoAccessible(url: String, currentName: String): Boolean? {
         val ghRepoRegex = Regex(
             "^https?://api\\.github\\.com/repos/([^/]+)/([^/]+)/.*$",
+            RegexOption.IGNORE_CASE
+        )
+        val match = ghRepoRegex.matchEntire(url) ?: return null
+        val owner = match.groupValues[1]
+        val repo = match.groupValues[2]
+        return runCatching {
+            fetchManifest("https://api.github.com/repos/$owner/$repo", currentName).isSuccessful
+        }.getOrNull()
+    }
+
+    internal fun buildFriendly404Message(url: String, repoAccessible: Boolean? = null): String {
+        val ghRepoRegex = Regex(
+            "^https?://(?:api\\.github\\.com/repos|raw\\.githubusercontent\\.com)/([^/]+)/([^/]+)/.*$",
             RegexOption.IGNORE_CASE
         )
         val match = ghRepoRegex.matchEntire(url)
         return if (match != null) {
             val owner = match.groupValues[1]
             val repo = match.groupValues[2]
-            "No published GitHub release found for $owner/$repo (HTTP 404). Make sure the repository is public and has at least one published Release, or clear the URL to verify your installed build."
+            when (repoAccessible) {
+                true -> "Repository $owner/$repo is public, but no GitHub Release, tag, or version.json is published yet (HTTP 404). Run the release workflow or publish a Release on GitHub."
+                false -> "Repository $owner/$repo is Private or not found (HTTP 404). Make the GitHub repository Public so the app can check releases without login."
+                null -> "No published GitHub release found for $owner/$repo (HTTP 404). Make sure the repository is Public and has a published Release, or clear the URL to verify your installed build."
+            }
         } else {
             "Update manifest not found at that URL (HTTP 404). Verify the URL or clear it to use on-device verification."
         }

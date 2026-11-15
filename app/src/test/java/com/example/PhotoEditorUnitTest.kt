@@ -437,5 +437,29 @@ class PhotoEditorUnitTest {
         )
         assertTrue(parsedEmpty != null)
         assertEquals("https://github.com/alice/lumina/releases", parsedEmpty!!.downloadUrl)
+
+        // GitHub /blob/ file URL normalization & friendly 404 diagnostics
+        assertEquals(
+            "https://raw.githubusercontent.com/jobicam/Lumina-photo-studio/main/version.json",
+            com.example.processing.AppUpdateChecker.normalizeFeedUrl(
+                "https://github.com/jobicam/Lumina-photo-studio/blob/main/version.json"
+            )
+        )
+        assertEquals(
+            "https://api.github.com/repos/jobicam/Lumina-photo-studio/releases/latest",
+            com.example.processing.AppUpdateChecker.normalizeFeedUrl(
+                "https://github.com/jobicam/Lumina-photo-studio"
+            )
+        )
+        val msgNoRelease = com.example.processing.AppUpdateChecker.buildFriendly404Message(
+            "https://api.github.com/repos/jobicam/Lumina-photo-studio/releases/latest",
+            repoAccessible = true
+        )
+        assertTrue(msgNoRelease.contains("public") && msgNoRelease.contains("Release"))
+        val msgPrivate = com.example.processing.AppUpdateChecker.buildFriendly404Message(
+            "https://api.github.com/repos/jobicam/Lumina-photo-studio/releases/latest",
+            repoAccessible = false
+        )
+        assertTrue(msgPrivate.contains("Private"))
     }
 }
