@@ -1,6 +1,5 @@
 package com.example.ui
 
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +40,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,11 +48,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
 import com.example.model.AppLanguage
 import com.example.model.ExportFormat
@@ -80,10 +78,9 @@ fun SettingsScreen(
     viewModel: PhotoEditorViewModel,
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val settings = uiState.settings
     val lang = settings.appLanguage
-    val context = LocalContext.current
     var showWhatsNew by remember { mutableStateOf(false) }
 
     // Android Hardware/System Back Handler returns to Home screen
@@ -116,18 +113,22 @@ fun SettingsScreen(
             ) {
                 IconButton(
                     onClick = { viewModel.navigateTo(AppScreen.HOME) },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(StudioCard)
-                        .border(1.dp, StudioBorder, CircleShape)
-                        .testTag("settings_back_button")
+                    modifier = Modifier.testTag("settings_back_button")
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = AppStrings.backToHome(lang),
-                        tint = TextPrimary
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(StudioCard)
+                            .border(1.dp, StudioBorder, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = AppStrings.backToHome(lang),
+                            tint = TextPrimary
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(14.dp))
@@ -492,10 +493,7 @@ fun SettingsScreen(
                     }
 
                     Button(
-                        onClick = {
-                            viewModel.clearCache()
-                            Toast.makeText(context, if (AppStrings.isKhmer(lang)) "បានសម្អាតឃ្លាំងសម្ងាត់រួចរាល់" else "Cache cleared", Toast.LENGTH_SHORT).show()
-                        },
+                        onClick = { viewModel.clearCache() },
                         colors = ButtonDefaults.buttonColors(containerColor = StudioSurfaceVariant),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.testTag("clear_cache_button")

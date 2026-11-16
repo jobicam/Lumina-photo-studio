@@ -30,7 +30,7 @@ object AppStrings {
     fun importPhoto(lang: AppLanguage) = if (isKhmer(lang)) "បញ្ចូលរូបភាព" else "Import Photo"
     fun importSubtitle(lang: AppLanguage) = if (isKhmer(lang)) "ពីវិចិត្រសាល" else "From Gallery"
     fun faceRetouch(lang: AppLanguage) = if (isKhmer(lang)) "កែសម្រួលផ្ទៃមុខ" else "Face Retouch"
-    fun faceRetouchSubtitle(lang: AppLanguage) = if (isKhmer(lang)) "ស្បែក ស្នាម & ធ្មេញស" else "Skin, Blemish & Teeth"
+    fun faceRetouchSubtitle(lang: AppLanguage) = if (isKhmer(lang)) "ស្បែក កែទម្រង់ & ធ្មេញស" else "Skin, Sculpt & Teeth"
     fun curvesAndFilters(lang: AppLanguage) = if (isKhmer(lang)) "ខ្សែកោង & តម្រង" else "Curves & Filters"
     fun curvesSubtitle(lang: AppLanguage) = if (isKhmer(lang)) "HSL & ម៉ូដពណ៌ ១៥+" else "HSL & 15+ Looks"
     fun trySamplePhotos(lang: AppLanguage) = if (isKhmer(lang)) "សាកល្បងរូបភាពគំរូ" else "TRY SAMPLE PHOTOS"
@@ -38,7 +38,7 @@ object AppStrings {
     fun portraitBadge(lang: AppLanguage) = if (isKhmer(lang)) "មុខ & ស្បែក" else "Face & Skin"
     fun mountainSunset(lang: AppLanguage) = if (isKhmer(lang)) "ថ្ងៃលិចលើភ្នំ" else "Mountain Sunset"
     fun sunsetBadge(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ & តម្រង" else "Color & Filter"
-    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.7" else "STUDIO CAPABILITIES v2.7"
+    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.8" else "STUDIO CAPABILITIES v2.8"
 
     // Feature Banners
     fun skinSmoothBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "រលោងស្បែក Gaussian & រក្សាភាពលម្អិត" else "Gaussian Mask Skin Smoothing"
@@ -55,8 +55,8 @@ object AppStrings {
     fun studioFramesBannerDesc(lang: AppLanguage) = if (isKhmer(lang)) "បន្ថែមស៊ុមស វិចិត្រសាល Polaroid ភាពយន្ត 21:9 និងស៊ុមមាស Obsidian។" else "Museum white, Polaroid, 21:9 Cinema bars, and Obsidian gold frames ready for export."
     fun histogramBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "ក្រាហ្វពណ៌ RGB ផ្ទាល់ (Histogram)" else "Live RGB & Luminance Histogram"
     fun histogramBannerDesc(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យពន្លឺ និងពណ៌ភ្លាមៗនៅលើផ្ទាំងរូបភាព និងក្រោមខ្សែកោងពណ៌។" else "Real-time tonal distribution HUD and interactive tone curve underlay."
-    fun blemishTitle(lang: AppLanguage) = if (isKhmer(lang)) "បំបាត់ស្នាមអុចខ្មៅ" else "Blemish Healing"
-    fun blemishDesc(lang: AppLanguage) = if (isKhmer(lang)) "ជួសជុលផ្ទៃស្បែកដោយស្វ័យប្រវត្តិតាមរយៈការលាយពណ៌ស្បែកជុំវិញ។" else "Seamless touch inpainting from surrounding skin textures."
+    fun retouchStudioTitle(lang: AppLanguage) = if (isKhmer(lang)) "ស្ទូឌីយោ Retouch & Restore Brush" else "Retouch Studio & Restore Brush"
+    fun retouchStudioDesc(lang: AppLanguage) = if (isKhmer(lang)) "ធ្វើឱ្យស្បែករលោង ធ្មេញស ភ្នែកភ្លឺ កែទម្រង់មុខ និងជក់ស្ដារផ្ទៃរូបភាពដើម។" else "Skin smoothing, teeth whiten, eye pop, directional sculpt warp, and original restore brush."
     fun curvesTitle(lang: AppLanguage) = if (isKhmer(lang)) "ខ្សែកោង & ពណ៌ HSL" else "Tone Curves & HSL"
     fun curvesDesc(lang: AppLanguage) = if (isKhmer(lang)) "ខ្សែកោង RGB កម្រិតវិជ្ជាជីវៈ និងការលៃតម្រូវបណ្តាញពណ៌ចំនួន ៨។" else "Professional RGB curve nodes and 8 selective color channels."
     fun filtersTitle(lang: AppLanguage) = if (isKhmer(lang)) "តម្រងហ្វីល & ពណ៌ចម្រុះ" else "Pro Tonal & Film Looks"
@@ -85,12 +85,10 @@ object AppStrings {
     fun tabCropLabel(lang: AppLanguage) = if (isKhmer(lang)) "កាត់តម្រឹម" else "Crop"
     fun autoSmoothSkin(lang: AppLanguage) = if (isKhmer(lang)) "រលោងស្បែកស្វ័យប្រវត្តិ" else "Auto Smooth"
     fun autoSmoothSubtitle(lang: AppLanguage) = if (isKhmer(lang)) "រកឃើញផ្ទៃស្បែក & ធ្វើឱ្យរលោងភ្លាមៗ" else "Auto-detect skin tones & smooth portrait"
-    fun detectBlemishes(lang: AppLanguage) = if (isKhmer(lang)) "ស្វែងរកស្នាម" else "Auto Detect"
-    fun healAllSpots(count: Int, lang: AppLanguage) = if (isKhmer(lang)) "លុបទាំងអស់ ($count)" else "Heal All ($count)"
-    fun clearSpots(lang: AppLanguage) = if (isKhmer(lang)) "សម្អាត" else "Clear"
-    fun sensitivityLabel(lang: AppLanguage) = if (isKhmer(lang)) "ភាពរសើប" else "Sensitivity"
-    fun blemishOverlayHint(count: Int, lang: AppLanguage) =
-        if (isKhmer(lang)) "រកឃើញ $count ចំណុច • ចុចលើរង្វង់ដើម្បីបំបាត់" else "$count spots found • Tap ring to heal"
+    fun restoreBrushLabel(lang: AppLanguage) = if (isKhmer(lang)) "ស្ដារដើម" else "Restore"
+    fun restoreBrushSubtitle(lang: AppLanguage) = if (isKhmer(lang)) "អូសដើម្បីបង្ហាញផ្ទៃរូបភាពដើមឡើងវិញ" else "Brush to restore original unretouched pixels"
+    fun retouchRestoreModeBadge(lang: AppLanguage) = if (isKhmer(lang)) "ទម្រង់ស្ដារដើម • អូសដើម្បីស្ដាររូបដើម" else "RESTORE BRUSH • PAINT TO REVEAL ORIGINAL"
+    fun sculptDragHint(lang: AppLanguage) = if (isKhmer(lang)) "អូសស្រាលៗតាមគែមមុខដើម្បីរុញកែទម្រង់" else "Drag gently along contours to nudge & shape"
 
     // --- Tool Panels ---
     fun strength(lang: AppLanguage) = if (isKhmer(lang)) "កម្រិត" else "Strength"
@@ -206,6 +204,7 @@ object AppStrings {
     fun statusTransformApplied(lang: AppLanguage) = if (isKhmer(lang)) "បានអនុវត្តការកាត់តម្រឹម" else "Transform applied"
     fun statusCropApplied(lang: AppLanguage) = if (isKhmer(lang)) "បានកាត់តម្រឹមរូបភាពរួចរាល់" else "Crop applied"
     fun statusCacheCleared(lang: AppLanguage) = if (isKhmer(lang)) "បានសម្អាតឃ្លាំងសម្ងាត់រួចរាល់" else "App cache cleared"
+    fun statusCacheClearFailed(lang: AppLanguage) = if (isKhmer(lang)) "មិនអាចសម្អាតឃ្លាំងសម្ងាត់បានទេ" else "Failed to clear cache"
     fun statusNoPhotoToSave(lang: AppLanguage) = if (isKhmer(lang)) "មិនមានរូបភាពសម្រាប់រក្សាទុកទេ" else "No photo loaded to save"
     fun statusPreparingShare(lang: AppLanguage) = if (isKhmer(lang)) "កំពុងរៀបចំរូបភាពសម្រាប់ចែករំលែក..." else "Preparing image..."
     fun statusSaveFailed(lang: AppLanguage, reason: String?) = if (isKhmer(lang)) "ការរក្សាទុកបរាជ័យ៖ ${reason.orEmpty()}" else "Save failed: ${reason.orEmpty()}"
@@ -213,19 +212,14 @@ object AppStrings {
     fun statusLoadFailed(lang: AppLanguage) = if (isKhmer(lang)) "មិនអាចផ្ទុករូបភាពបានទេ" else "Could not load image"
     fun statusRetouchApplied(tool: com.example.model.RetouchType, lang: AppLanguage): String =
         if (isKhmer(lang)) "បានអនុវត្ត ${retouchTitle(tool, lang)}" else "${tool.title} applied"
+    fun statusRetouchRestored(lang: AppLanguage) =
+        if (isKhmer(lang)) "បានស្ដារផ្ទៃរូបភាពដើម" else "Restored original pixels"
     fun cameraPermToast(lang: AppLanguage) = if (isKhmer(lang)) "ត្រូវការសិទ្ធិប្រើកាមេរ៉ា ដើម្បីថតរូប" else "Camera permission is required to capture photos"
     fun cameraCaptureFailed(lang: AppLanguage, reason: String?) = if (isKhmer(lang)) "ថតរូបបរាជ័យ៖ ${reason.orEmpty()}" else "Capture failed: ${reason.orEmpty()}"
     fun storagePermDeniedToast(lang: AppLanguage) = if (isKhmer(lang)) "ត្រូវការសិទ្ធិរក្សាទុកឯកសារ ដើម្បីរក្សាទុកក្នុងវិចិត្រសាល" else "Storage permission is required to save to gallery"
     fun statusAutoEnhanceApplied(lang: AppLanguage) = if (isKhmer(lang)) "បានកែលម្អពន្លឺ និងពណ៌ស្វ័យប្រវត្តិ" else "Smart Auto Enhance applied"
     fun statusFrameApplied(frame: com.example.model.FrameStyle, lang: AppLanguage): String =
         if (isKhmer(lang)) "បានជ្រើសរើសស៊ុម៖ ${frameLabel(frame, lang)}" else "Frame: ${frameLabel(frame, lang)}"
-    fun statusBlemishesDetected(count: Int, lang: AppLanguage): String = when {
-        count <= 0 -> if (isKhmer(lang)) "មិនមានស្នាមអុចខ្មៅលើស្បែកទេ" else "No blemish spots detected on skin"
-        isKhmer(lang) -> "រកឃើញស្នាមចំនួន $count — ចុចរង្វង់ដើម្បីបំបាត់"
-        else -> "Found $count blemish spot${if (count == 1) "" else "s"} — tap a ring to heal"
-    }
-    fun statusAllBlemishesHealed(count: Int, lang: AppLanguage): String =
-        if (isKhmer(lang)) "បានបំបាត់ស្នាមទាំង $count ចំណុចរួចរាល់" else "Healed $count detected blemish${if (count == 1) "" else "es"}"
 
     // --- Filter Categories ---
     fun filterCategory(cat: com.example.model.FilterCategory, lang: AppLanguage): String = when (cat) {
@@ -240,7 +234,6 @@ object AppStrings {
 
     // --- Retouch Tools ---
     fun retouchTitle(tool: com.example.model.RetouchType, lang: AppLanguage): String = when (tool) {
-        com.example.model.RetouchType.BLEMISH -> if (isKhmer(lang)) "បំបាត់ស្នាម" else "Blemish Heal"
         com.example.model.RetouchType.SKIN_SMOOTH -> if (isKhmer(lang)) "ស្បែករលោង" else "Skin Smooth"
         com.example.model.RetouchType.TEETH_WHITEN -> if (isKhmer(lang)) "ធ្មេញស" else "Teeth Whiten"
         com.example.model.RetouchType.EYE_POP -> if (isKhmer(lang)) "ភ្នែកភ្លឺថ្លា" else "Eye Pop"
@@ -250,7 +243,6 @@ object AppStrings {
     }
 
     fun retouchSubtitle(tool: com.example.model.RetouchType, lang: AppLanguage): String = when (tool) {
-        com.example.model.RetouchType.BLEMISH -> if (isKhmer(lang)) "ចុច ឬអូសលើស្នាមដើម្បីបំបាត់ភ្លាមៗ" else "Tap or brush spots to vanish them"
         com.example.model.RetouchType.SKIN_SMOOTH -> if (isKhmer(lang)) "ធ្វើឱ្យស្បែករលោង និងបន្ថយរន្ធញើស" else "Softens skin texture & evens pores"
         com.example.model.RetouchType.TEETH_WHITEN -> if (isKhmer(lang)) "កាត់បន្ថយពណ៌លឿង និងធ្វើឱ្យធ្មេញស" else "Removes yellow tint & brightens teeth"
         com.example.model.RetouchType.EYE_POP -> if (isKhmer(lang)) "បង្កើនពន្លឺប្រស្រីភ្នែកឱ្យភ្លឺថ្លា" else "Enhances iris sparkle & eye clarity"

@@ -92,7 +92,7 @@ fun SaveOptionsModal(
 
     // Resolution options
     val maxOriginal = maxOf(displayBitmap.width, displayBitmap.height)
-    val resolutionOptions = remember(maxOriginal, lang) {
+    val resolutionOptions = remember(displayBitmap.width, displayBitmap.height, lang) {
         val originalLabel = if (com.example.util.AppStrings.isKhmer(lang)) {
             "ទំហំដើម (${displayBitmap.width} × ${displayBitmap.height})"
         } else {
@@ -161,8 +161,7 @@ fun SaveOptionsModal(
                     }
 
                     IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(32.dp)
+                        onClick = onDismiss
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,

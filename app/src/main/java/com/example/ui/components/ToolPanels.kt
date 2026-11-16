@@ -23,18 +23,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material.icons.filled.RotateRight
-import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -75,11 +70,9 @@ import com.example.model.HistogramData
 import com.example.model.HslChannelAdjustment
 import com.example.model.HslColorChannel
 import com.example.model.HslState
-import com.example.model.RetouchType
 import com.example.model.SingleCurve
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
-import com.example.ui.theme.AccentPink
 import com.example.ui.theme.StudioBorder
 import com.example.ui.theme.StudioCard
 import com.example.ui.theme.StudioSurfaceVariant
@@ -286,466 +279,7 @@ private fun FilterItemCard(
     }
 }
 
-// -------------------------------------------------------------
-// 2. RETOUCH PANEL
-// -------------------------------------------------------------
-@Composable
-fun RetouchPanel(
-    activeTool: RetouchType,
-    brushRadius: Float,
-    brushIntensity: Float,
-    onSelectTool: (RetouchType) -> Unit,
-    onRadiusChanged: (Float) -> Unit,
-    onIntensityChanged: (Float) -> Unit,
-    texturePreserve: Float = 0.30f,
-    onTexturePreserveChanged: (Float) -> Unit = {},
-    onAutoSkinSmooth: () -> Unit = {},
-    suggestedBlemishCount: Int = 0,
-    blemishSensitivity: Float = 0.65f,
-    onBlemishSensitivityChanged: (Float) -> Unit = {},
-    onDetectBlemishes: () -> Unit = {},
-    onHealAllBlemishes: () -> Unit = {},
-    onClearBlemishSuggestions: () -> Unit = {},
-    onOpenBackgroundBlur: () -> Unit = {},
-    modifier: Modifier = Modifier,
-    lang: AppLanguage = AppLanguage.SYSTEM,
-    hapticFeedback: Boolean = true
-) {
-    val haptics = LocalHapticFeedback.current
-    var lastRadiusInt by remember { mutableIntStateOf(brushRadius.toInt()) }
-    var lastIntensityInt by remember { mutableIntStateOf((brushIntensity * 100).toInt()) }
-    var lastDetailInt by remember { mutableIntStateOf((texturePreserve * 100).toInt()) }
-    var lastSensitivityInt by remember { mutableIntStateOf((blemishSensitivity * 100).toInt()) }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(vertical = 8.dp)
-            .testTag("retouch_panel")
-    ) {
-        // Helpful tip banner with Auto Skin Smooth action
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(StudioSurfaceVariant)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.AutoFixHigh,
-                        contentDescription = null,
-                        tint = AccentCyan,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = AppStrings.retouchSubtitle(activeTool, lang),
-                        fontSize = 11.sp,
-                        color = TextPrimary,
-                        maxLines = 1
-                    )
-                }
-            }
-
-            // Quick Auto Skin Smoothing trigger
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(AccentPink.copy(alpha = 0.2f))
-                    .border(1.dp, AccentPink.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                    .clickable(onClick = onAutoSkinSmooth)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                    .testTag("auto_skin_smooth_button")
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Face,
-                        contentDescription = AppStrings.autoSmoothSkin(lang),
-                        tint = AccentPink,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = AppStrings.autoSmoothSkin(lang),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AccentPink,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-            }
-
-            // Quick Background Blur shortcut
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(AccentCyan.copy(alpha = 0.16f))
-                    .border(1.dp, AccentCyan.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                    .clickable(onClick = onOpenBackgroundBlur)
-                    .padding(horizontal = 9.dp, vertical = 6.dp)
-                    .testTag("quick_blur_bg_button")
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CenterFocusStrong,
-                        contentDescription = AppStrings.quickBlurBg(lang),
-                        tint = AccentCyan,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = AppStrings.quickBlurBg(lang),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = AccentCyan,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Tool Selector Carousel
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(RetouchType.values()) { tool ->
-                val isSelected = tool == activeTool
-                val icon = when (tool) {
-                    RetouchType.BLEMISH -> Icons.Default.AutoFixHigh
-                    RetouchType.SKIN_SMOOTH -> Icons.Default.Face
-                    RetouchType.TEETH_WHITEN -> Icons.Default.SentimentSatisfiedAlt
-                    RetouchType.EYE_POP -> Icons.Default.RemoveRedEye
-                    RetouchType.SCULPT -> Icons.Default.Crop
-                    RetouchType.DETAIL_SHARPEN -> Icons.Default.Tune
-                    RetouchType.GLOW -> Icons.Default.AutoAwesome
-                }
-                val title = AppStrings.retouchTitle(tool, lang)
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) StudioSurfaceVariant else StudioCard)
-                        .border(
-                            width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) AccentCyan else StudioBorder,
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .clickable { onSelectTool(tool) }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .testTag("retouch_tool_${tool.name.lowercase()}")
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = title,
-                            tint = if (isSelected) AccentCyan else TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = title,
-                            color = if (isSelected) AccentCyan else TextPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Brush Radius Slider
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = AppStrings.sizeLabel(lang),
-                fontSize = 12.sp,
-                color = TextSecondary,
-                modifier = Modifier.width(64.dp)
-            )
-            Slider(
-                value = brushRadius,
-                onValueChange = { v ->
-                    val step = v.toInt()
-                    if (hapticFeedback && step != lastRadiusInt) {
-                        lastRadiusInt = step
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    }
-                    onRadiusChanged(v)
-                },
-                valueRange = 10f..80f,
-                colors = SliderDefaults.colors(
-                    thumbColor = AccentCyan,
-                    activeTrackColor = AccentCyan,
-                    inactiveTrackColor = StudioBorder
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("brush_size_slider")
-            )
-            // Visual circle preview of brush size
-            Box(
-                modifier = Modifier
-                    .width(44.dp)
-                    .height(28.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size((brushRadius * 0.35f).dp.coerceIn(6.dp, 24.dp))
-                        .background(AccentCyan, CircleShape)
-                )
-            }
-        }
-
-        // Brush Intensity Slider
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = AppStrings.intensityLabel(lang),
-                fontSize = 12.sp,
-                color = TextSecondary,
-                modifier = Modifier.width(64.dp)
-            )
-            Slider(
-                value = brushIntensity,
-                onValueChange = { v ->
-                    val step = (v * 100).toInt()
-                    if (hapticFeedback && step != lastIntensityInt) {
-                        lastIntensityInt = step
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    }
-                    onIntensityChanged(v)
-                },
-                valueRange = 0.1f..1.0f,
-                colors = SliderDefaults.colors(
-                    thumbColor = AccentAmber,
-                    activeTrackColor = AccentAmber,
-                    inactiveTrackColor = StudioBorder
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("brush_intensity_slider")
-            )
-            Text(
-                text = "${(brushIntensity * 100).toInt()}%",
-                fontSize = 12.sp,
-                color = AccentAmber,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(44.dp)
-            )
-        }
-
-        // Detail Preservation Slider (when Skin Smooth tool is active)
-        if (activeTool == RetouchType.SKIN_SMOOTH) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = AppStrings.texturePreserveLabel(lang),
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    modifier = Modifier.width(64.dp)
-                )
-                Slider(
-                    value = texturePreserve,
-                    onValueChange = { v ->
-                        val step = (v * 100).toInt()
-                        if (hapticFeedback && step != lastDetailInt) {
-                            lastDetailInt = step
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        }
-                        onTexturePreserveChanged(v)
-                    },
-                    valueRange = 0f..0.75f,
-                    colors = SliderDefaults.colors(
-                        thumbColor = AccentPink,
-                        activeTrackColor = AccentPink,
-                        inactiveTrackColor = StudioBorder
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("texture_preserve_slider")
-                )
-                Text(
-                    text = "${(texturePreserve * 100).toInt()}%",
-                    fontSize = 12.sp,
-                    color = AccentPink,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(44.dp)
-                )
-            }
-        }
-
-        // Automated Blemish Blob Detection Controls (when Blemish Heal tool is active)
-        if (activeTool == RetouchType.BLEMISH) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .heightIn(min = 40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(AccentCyan.copy(alpha = 0.16f))
-                        .border(1.dp, AccentCyan.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                        .clickable(onClick = onDetectBlemishes)
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .testTag("detect_blemishes_button"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CenterFocusStrong,
-                            contentDescription = AppStrings.detectBlemishes(lang),
-                            tint = AccentCyan,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = AppStrings.detectBlemishes(lang),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AccentCyan,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                }
-
-                if (suggestedBlemishCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .heightIn(min = 40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(AccentAmber.copy(alpha = 0.2f))
-                            .border(1.dp, AccentAmber.copy(alpha = 0.65f), RoundedCornerShape(10.dp))
-                            .clickable(onClick = onHealAllBlemishes)
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .testTag("heal_all_blemishes_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.DoneAll,
-                                contentDescription = AppStrings.healAllSpots(suggestedBlemishCount, lang),
-                                tint = AccentAmber,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = AppStrings.healAllSpots(suggestedBlemishCount, lang),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AccentAmber,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .heightIn(min = 40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(StudioCard)
-                            .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
-                            .clickable(onClick = onClearBlemishSuggestions)
-                            .padding(horizontal = 10.dp, vertical = 8.dp)
-                            .testTag("clear_blemishes_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = AppStrings.clearSpots(lang),
-                                tint = TextSecondary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = AppStrings.clearSpots(lang),
-                                fontSize = 11.sp,
-                                color = TextSecondary,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    }
-                } else {
-                    Text(
-                        text = AppStrings.sensitivityLabel(lang),
-                        fontSize = 11.sp,
-                        color = TextSecondary,
-                        maxLines = 1
-                    )
-                    Slider(
-                        value = blemishSensitivity,
-                        onValueChange = { v ->
-                            val step = (v * 100).toInt()
-                            if (hapticFeedback && step != lastSensitivityInt) {
-                                lastSensitivityInt = step
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                            onBlemishSensitivityChanged(v)
-                        },
-                        valueRange = 0.1f..1.0f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = AccentAmber,
-                            activeTrackColor = AccentAmber,
-                            inactiveTrackColor = StudioBorder
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("blemish_sensitivity_slider")
-                    )
-                    Text(
-                        text = "${(blemishSensitivity * 100).toInt()}%",
-                        fontSize = 11.sp,
-                        color = AccentAmber,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(36.dp)
-                    )
-                }
-            }
-        }
-    }
-}
+// 2. RETOUCH PANEL moved to RetouchPanel.kt
 
 // -------------------------------------------------------------
 // 3. ADJUST PANEL
@@ -847,9 +381,7 @@ fun AdjustPanel(
 
                 IconButton(
                     onClick = onReset,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .testTag("adjust_reset_button")
+                    modifier = Modifier.testTag("adjust_reset_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
@@ -1269,9 +801,7 @@ fun CurvesPanel(
 
             IconButton(
                 onClick = onResetChannel,
-                modifier = Modifier
-                    .size(32.dp)
-                    .testTag("curves_reset_button")
+                modifier = Modifier.testTag("curves_reset_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
@@ -1376,9 +906,7 @@ fun HslPanel(
 
             IconButton(
                 onClick = onResetChannel,
-                modifier = Modifier
-                    .size(32.dp)
-                    .testTag("hsl_reset_button")
+                modifier = Modifier.testTag("hsl_reset_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,

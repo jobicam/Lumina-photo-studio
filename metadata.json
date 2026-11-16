@@ -1,6 +1,6 @@
 {
   "name": "Lumina Photo",
-  "description": "Professional photo editor and retouching studio with advanced skin smoothing, blemish removal, curves, HSL color grading, selective brushes, and artistic filters.",
+  "description": "Professional photo editor and retouching studio with advanced skin smoothing, restore brush, background blur, curves, HSL color grading, selective brushes, and artistic filters.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

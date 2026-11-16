@@ -63,7 +63,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +81,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
 import com.example.R
 import com.example.ui.components.CameraCaptureView
@@ -109,7 +109,7 @@ fun HomeScreen(
     viewModel: PhotoEditorViewModel,
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lang = uiState.settings.appLanguage
     var showCamera by remember { mutableStateOf(false) }
@@ -258,43 +258,49 @@ fun HomeScreen(
                     val hasAvailableUpdate = uiState.updateStatus is com.example.model.UpdateStatus.UpdateAvailable
                     IconButton(
                         onClick = { viewModel.checkForUpdates(openDialog = true) },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(if (hasAvailableUpdate) AccentAmber.copy(alpha = 0.18f) else StudioCard)
-                            .border(
-                                width = 1.dp,
-                                color = if (hasAvailableUpdate) AccentAmber else StudioBorder,
-                                shape = CircleShape
-                            )
-                            .testTag("home_check_updates_button")
+                        modifier = Modifier.testTag("home_check_updates_button")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.SystemUpdate,
-                            contentDescription = com.example.util.AppStrings.checkForUpdates(lang),
-                            tint = if (hasAvailableUpdate) AccentAmber else AccentCyan,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(if (hasAvailableUpdate) AccentAmber.copy(alpha = 0.18f) else StudioCard)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (hasAvailableUpdate) AccentAmber else StudioBorder,
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = com.example.util.AppStrings.checkForUpdates(lang),
+                                tint = if (hasAvailableUpdate) AccentAmber else AccentCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
-
-                    Spacer(modifier = Modifier.width(6.dp))
 
                     // Settings Button
                     IconButton(
                         onClick = { viewModel.navigateTo(AppScreen.SETTINGS) },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(StudioCard)
-                            .border(1.dp, StudioBorder, CircleShape)
-                            .testTag("home_settings_button")
+                        modifier = Modifier.testTag("home_settings_button")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = com.example.util.AppStrings.tabSettings(lang),
-                            tint = TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(StudioCard)
+                                .border(1.dp, StudioBorder, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = com.example.util.AppStrings.tabSettings(lang),
+                                tint = TextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -373,8 +379,11 @@ fun HomeScreen(
                     icon = Icons.Default.Face,
                     accentColor = AccentPink,
                     onClick = {
-                        viewModel.selectTab(EditorTab.RETOUCH)
-                        viewModel.loadSamplePhoto(isPortrait = true, autoNavigate = true)
+                        viewModel.loadSamplePhoto(
+                            isPortrait = true,
+                            autoNavigate = true,
+                            initialTab = EditorTab.RETOUCH
+                        )
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -388,8 +397,11 @@ fun HomeScreen(
                     icon = Icons.Default.ShowChart,
                     accentColor = AccentPurple,
                     onClick = {
-                        viewModel.selectTab(EditorTab.CURVES)
-                        viewModel.loadSamplePhoto(isPortrait = false, autoNavigate = true)
+                        viewModel.loadSamplePhoto(
+                            isPortrait = false,
+                            autoNavigate = true,
+                            initialTab = EditorTab.CURVES
+                        )
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -422,8 +434,11 @@ fun HomeScreen(
                     imageRes = R.drawable.sample_portrait,
                     icon = Icons.Default.Face,
                     onClick = {
-                        viewModel.selectTab(EditorTab.RETOUCH)
-                        viewModel.loadSamplePhoto(isPortrait = true, autoNavigate = true)
+                        viewModel.loadSamplePhoto(
+                            isPortrait = true,
+                            autoNavigate = true,
+                            initialTab = EditorTab.RETOUCH
+                        )
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -436,8 +451,11 @@ fun HomeScreen(
                     imageRes = R.drawable.sample_landscape,
                     icon = Icons.Default.Landscape,
                     onClick = {
-                        viewModel.selectTab(EditorTab.FILTERS)
-                        viewModel.loadSamplePhoto(isPortrait = false, autoNavigate = true)
+                        viewModel.loadSamplePhoto(
+                            isPortrait = false,
+                            autoNavigate = true,
+                            initialTab = EditorTab.FILTERS
+                        )
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -516,8 +534,8 @@ fun HomeScreen(
                 )
 
                 FeatureBanner(
-                    title = com.example.util.AppStrings.blemishTitle(lang),
-                    description = com.example.util.AppStrings.blemishDesc(lang),
+                    title = com.example.util.AppStrings.retouchStudioTitle(lang),
+                    description = com.example.util.AppStrings.retouchStudioDesc(lang),
                     icon = Icons.Default.AutoFixHigh,
                     accent = AccentCyan
                 )
@@ -666,7 +684,15 @@ fun HomeScreen(
                 lang = lang,
                 onShare = {
                     viewModel.shareImage { shareIntent ->
-                        context.startActivity(shareIntent)
+                        try {
+                            context.startActivity(shareIntent)
+                        } catch (_: Exception) {
+                            Toast.makeText(
+                                context,
+                                com.example.util.AppStrings.statusShareFailed(lang, null),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
                 },
                 onDismiss = { viewModel.closeSaveSuccessModal() }
@@ -748,19 +774,23 @@ private fun ActiveSessionCard(
             // Direct Save to Gallery button
             IconButton(
                 onClick = onSave,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(StudioSurfaceVariant)
-                    .border(1.dp, StudioBorder, CircleShape)
-                    .testTag("home_active_session_save")
+                modifier = Modifier.testTag("home_active_session_save")
             ) {
-                Icon(
-                    imageVector = Icons.Default.Download,
-                    contentDescription = "Save to Gallery",
-                    tint = AccentCyan,
-                    modifier = Modifier.size(18.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(StudioSurfaceVariant)
+                        .border(1.dp, StudioBorder, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Save to Gallery",
+                        tint = AccentCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
 
             // Resume Edit button

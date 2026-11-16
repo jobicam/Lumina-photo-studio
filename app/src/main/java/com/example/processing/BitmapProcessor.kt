@@ -1033,8 +1033,14 @@ object BitmapProcessor {
 
     /**
      * Executes interactive retouching strokes directly onto the target working bitmap.
+     * When [stroke.isEraser] is true and a matching-dimension [originalBitmap] is supplied,
+     * pixels within the stroke radius are smoothly restored toward the unretouched original.
      */
-    fun applyRetouchStroke(targetBitmap: Bitmap, stroke: RetouchStroke) {
+    fun applyRetouchStroke(
+        targetBitmap: Bitmap,
+        stroke: RetouchStroke,
+        originalBitmap: Bitmap? = null
+    ) {
         val width = targetBitmap.width
         val height = targetBitmap.height
         val rad = (stroke.radius * (min(width, height) / 400f)).toInt().coerceIn(6, min(width, height) / 4)
@@ -1047,55 +1053,65 @@ object BitmapProcessor {
             val px = (point.normX * width).toInt().coerceIn(0, width - 1)
             val py = (point.normY * height).toInt().coerceIn(0, height - 1)
 
+            var stepDx = 0f
+            var stepDy = 0f
             if (lastPx != Int.MIN_VALUE) {
                 val dx = (px - lastPx).toFloat()
                 val dy = (py - lastPy).toFloat()
                 if (dx * dx + dy * dy < minStepDistSq) continue
+                stepDx = dx
+                stepDy = dy
             }
             lastPx = px
             lastPy = py
 
+            if (stroke.isEraser) {
+                if (originalBitmap != null && originalBitmap.width == width && originalBitmap.height == height) {
+                    restoreOriginalArea(targetBitmap, originalBitmap, px, py, rad, stroke.intensity)
+                }
+                continue
+            }
+
             when (stroke.type) {
-                RetouchType.BLEMISH -> healBlemish(targetBitmap, px, py, rad, stroke.intensity)
                 RetouchType.SKIN_SMOOTH -> smoothSkinArea(targetBitmap, px, py, rad, stroke.intensity, stroke.texturePreserve)
                 RetouchType.TEETH_WHITEN -> whitenTeethArea(targetBitmap, px, py, rad, stroke.intensity)
                 RetouchType.EYE_POP -> brightenEyesArea(targetBitmap, px, py, rad, stroke.intensity)
                 RetouchType.DETAIL_SHARPEN -> sharpenDetailArea(targetBitmap, px, py, rad, stroke.intensity)
                 RetouchType.GLOW -> applyGlowHighlight(targetBitmap, px, py, rad, stroke.intensity)
-                RetouchType.SCULPT -> sculptWarpArea(targetBitmap, px, py, rad, stroke.intensity)
+                RetouchType.SCULPT -> sculptWarpArea(targetBitmap, px, py, rad, stroke.intensity, stepDx, stepDy)
             }
         }
     }
 
     /**
-     * Blemish / Spot Healing:
-     * High-speed buffer inpainting from outer boundary ring skin samples.
+     * Restore Brush (Eraser):
+     * Blends pixels back toward [originalBitmap] inside the feathered brush radius.
      */
-    private fun healBlemish(bitmap: Bitmap, cx: Int, cy: Int, radius: Int, intensity: Float) {
-        val width = bitmap.width
-        val height = bitmap.height
-
-        val x0 = (cx - radius * 2).coerceAtLeast(0)
-        val x1 = (cx + radius * 2).coerceAtMost(width - 1)
-        val y0 = (cy - radius * 2).coerceAtLeast(0)
-        val y1 = (cy + radius * 2).coerceAtMost(height - 1)
+    private fun restoreOriginalArea(
+        targetBitmap: Bitmap,
+        originalBitmap: Bitmap,
+        cx: Int,
+        cy: Int,
+        radius: Int,
+        intensity: Float
+    ) {
+        val width = targetBitmap.width
+        val height = targetBitmap.height
+        val x0 = (cx - radius).coerceAtLeast(0)
+        val x1 = (cx + radius).coerceAtMost(width - 1)
+        val y0 = (cy - radius).coerceAtLeast(0)
+        val y1 = (cy + radius).coerceAtMost(height - 1)
+        if (x1 < x0 || y1 < y0) return
 
         val patchW = x1 - x0 + 1
         val patchH = y1 - y0 + 1
-        val patch = IntArray(patchW * patchH)
-        bitmap.getPixels(patch, 0, patchW, x0, y0, patchW, patchH)
+        val dstPatch = IntArray(patchW * patchH)
+        val origPatch = IntArray(patchW * patchH)
+        targetBitmap.getPixels(dstPatch, 0, patchW, x0, y0, patchW, patchH)
+        originalBitmap.getPixels(origPatch, 0, patchW, x0, y0, patchW, patchH)
 
-        var sumR = 0L
-        var sumG = 0L
-        var sumB = 0L
-        var count = 0
-        var skinSumR = 0L
-        var skinSumG = 0L
-        var skinSumB = 0L
-        var skinCount = 0
-
-        val rOuter = radius * 1.55f
-        val rInner = radius * 1.0f
+        val strength = intensity.coerceIn(0.05f, 1f)
+        val radF = radius.toFloat().coerceAtLeast(1f)
 
         for (y in y0..y1) {
             val dy = y - cy
@@ -1103,61 +1119,33 @@ object BitmapProcessor {
             for (x in x0..x1) {
                 val dx = x - cx
                 val dist = sqrt((dx * dx + dy * dy).toFloat())
-                if (dist in rInner..rOuter) {
-                    val p = patch[rowOffset + (x - x0)]
-                    val pr = (p shr 16) and 0xFF
-                    val pg = (p shr 8) and 0xFF
-                    val pb = p and 0xFF
-                    sumR += pr
-                    sumG += pg
-                    sumB += pb
-                    count++
-                    if (isSkinTone(pr, pg, pb)) {
-                        skinSumR += pr
-                        skinSumG += pg
-                        skinSumB += pb
-                        skinCount++
-                    }
-                }
-            }
-        }
-
-        if (count == 0) return
-        val avgR = if (skinCount >= 4) (skinSumR / skinCount).toInt() else (sumR / count).toInt()
-        val avgG = if (skinCount >= 4) (skinSumG / skinCount).toInt() else (sumG / count).toInt()
-        val avgB = if (skinCount >= 4) (skinSumB / skinCount).toInt() else (sumB / count).toInt()
-
-        for (y in y0..y1) {
-            val dy = y - cy
-            val rowOffset = (y - y0) * patchW
-            for (x in x0..x1) {
-                val dx = x - cx
-                val dist = sqrt((dx * dx + dy * dy).toFloat())
-                if (dist <= radius) {
+                if (dist <= radF) {
+                    val t = 1f - dist / radF
+                    val alpha = (t * t * (3f - 2f * t) * strength).coerceIn(0f, 1f)
                     val idx = rowOffset + (x - x0)
-                    val normDist = (dist / radius).coerceIn(0f, 1f)
-                    val falloff = if (normDist <= 0.55f) {
-                        1.0f
-                    } else {
-                        val t = ((normDist - 0.55f) / 0.45f).coerceIn(0f, 1f)
-                        1.0f - t * t * (3f - 2f * t)
-                    }
-                    val weight = falloff * intensity
-                    val orig = patch[idx]
+                    val cur = dstPatch[idx]
+                    val orig = origPatch[idx]
+
+                    val cA = (cur ushr 24) and 0xFF
+                    val cR = (cur shr 16) and 0xFF
+                    val cG = (cur shr 8) and 0xFF
+                    val cB = cur and 0xFF
+
+                    val oA = (orig ushr 24) and 0xFF
                     val oR = (orig shr 16) and 0xFF
                     val oG = (orig shr 8) and 0xFF
                     val oB = orig and 0xFF
-                    val oA = (orig shr 24) and 0xFF
 
-                    val newR = (oR * (1f - weight) + avgR * weight).toInt().coerceIn(0, 255)
-                    val newG = (oG * (1f - weight) + avgG * weight).toInt().coerceIn(0, 255)
-                    val newB = (oB * (1f - weight) + avgB * weight).toInt().coerceIn(0, 255)
+                    val outA = (cA + (oA - cA) * alpha).roundToInt().coerceIn(0, 255)
+                    val outR = (cR + (oR - cR) * alpha).roundToInt().coerceIn(0, 255)
+                    val outG = (cG + (oG - cG) * alpha).roundToInt().coerceIn(0, 255)
+                    val outB = (cB + (oB - cB) * alpha).roundToInt().coerceIn(0, 255)
 
-                    patch[idx] = (oA shl 24) or (newR shl 16) or (newG shl 8) or newB
+                    dstPatch[idx] = (outA shl 24) or (outR shl 16) or (outG shl 8) or outB
                 }
             }
         }
-        bitmap.setPixels(patch, 0, patchW, x0, y0, patchW, patchH)
+        targetBitmap.setPixels(dstPatch, 0, patchW, x0, y0, patchW, patchH)
     }
 
     /**
@@ -1605,7 +1593,8 @@ object BitmapProcessor {
                 val dx = x - cx
                 val dist = sqrt((dx * dx + dy * dy).toFloat())
                 if (dist <= radius) {
-                    val falloff = (1.0f - dist / radius) * intensity
+                    val t = 1.0f - dist / radius
+                    val falloff = t * t * (3f - 2f * t) * intensity
                     val idx = rowOffset + (x - x0)
                     val curr = patch[idx]
                     val cR = (curr shr 16) and 0xFF
@@ -1655,7 +1644,8 @@ object BitmapProcessor {
                 val dx = x - cx
                 val dist = sqrt((dx * dx + dy * dy).toFloat())
                 if (dist <= radius) {
-                    val falloff = (1.0f - dist / radius) * intensity
+                    val t = 1.0f - dist / radius
+                    val falloff = t * t * (3f - 2f * t) * intensity
                     val idx = rowOffset + (x - x0)
                     val curr = patch[idx]
                     val cA = (curr shr 24) and 0xFF
@@ -1707,7 +1697,8 @@ object BitmapProcessor {
                 val dist = sqrt((dx * dx + dy * dy).toFloat())
 
                 if (dist <= radius) {
-                    val weight = (1.0f - dist / radius) * intensity * 0.8f
+                    val t = 1.0f - dist / radius
+                    val weight = t * t * (3f - 2f * t) * intensity * 0.85f
                     val up = srcPatch[(srcY - 1) * padW + srcX]
                     val down = srcPatch[(srcY + 1) * padW + srcX]
                     val left = srcPatch[srcIdx - 1]
@@ -1763,7 +1754,9 @@ object BitmapProcessor {
                 val dx = x - cx
                 val dist = sqrt((dx * dx + dy * dy).toFloat())
                 if (dist <= radius) {
-                    val falloff = (1.0f - (dist / radius) * (dist / radius)) * intensity * 0.4f
+                    val norm = dist / radius
+                    val smooth = (1.0f - norm * norm)
+                    val falloff = smooth * smooth * intensity * 0.42f
                     val idx = rowOffset + (x - x0)
                     val curr = patch[idx]
                     val cR = (curr shr 16) and 0xFF
@@ -1784,9 +1777,18 @@ object BitmapProcessor {
 
     /**
      * Sculpt & Warp:
-     * Pinch/expand radial warp to smoothly reshape jawline, cheeks, or features.
+     * Directional forward-push liquify warp with bilinear sampling along drag strokes,
+     * falling back to smooth radial contour firming on a single tap.
      */
-    private fun sculptWarpArea(bitmap: Bitmap, cx: Int, cy: Int, radius: Int, intensity: Float) {
+    private fun sculptWarpArea(
+        bitmap: Bitmap,
+        cx: Int,
+        cy: Int,
+        radius: Int,
+        intensity: Float,
+        pushDx: Float = 0f,
+        pushDy: Float = 0f
+    ) {
         val width = bitmap.width
         val height = bitmap.height
         val x0 = (cx - radius).coerceAtLeast(0)
@@ -1802,21 +1804,70 @@ object BitmapProcessor {
         bitmap.getPixels(srcBuffer, 0, bWidth, x0, y0, bWidth, bHeight)
         System.arraycopy(srcBuffer, 0, dstBuffer, 0, srcBuffer.size)
 
-        val factor = intensity * 0.3f
+        val pushMag = sqrt(pushDx * pushDx + pushDy * pushDy)
+        val isDirectional = pushMag > 0.5f
+        val radF = radius.toFloat().coerceAtLeast(1f)
+        val maxShift = radF * 0.45f * intensity.coerceIn(0.1f, 1f)
+        val shiftScale = if (isDirectional) (maxShift / pushMag).coerceAtMost(0.85f * intensity) else 0f
+        val dirX = pushDx * shiftScale
+        val dirY = pushDy * shiftScale
+        val pinchFactor = intensity * 0.28f
+        val maxBx = bWidth - 1
+        val maxBy = bHeight - 1
 
         for (y in y0..y1) {
-            val dy = y - cy
+            val dy = (y - cy).toFloat()
             val rowOffset = (y - y0) * bWidth
             for (x in x0..x1) {
-                val dx = x - cx
-                val dist = sqrt((dx * dx + dy * dy).toFloat())
-                if (dist <= radius) {
-                    val normDist = dist / radius
-                    val warp = 1.0f - factor * (1.0f - normDist)
-                    val srcX = (cx + dx * warp).toInt().coerceIn(x0, x1)
-                    val srcY = (cy + dy * warp).toInt().coerceIn(y0, y1)
+                val dx = (x - cx).toFloat()
+                val distSq = dx * dx + dy * dy
+                val radSq = radF * radF
+                if (distSq <= radSq) {
+                    val normDistSq = distSq / radSq
+                    val falloff = (1.0f - normDistSq) * (1.0f - normDistSq)
 
-                    dstBuffer[rowOffset + (x - x0)] = srcBuffer[(srcY - y0) * bWidth + (srcX - x0)]
+                    val sampleX: Float
+                    val sampleY: Float
+                    if (isDirectional) {
+                        // Inverse mapping: pull source pixels from behind the stroke direction
+                        sampleX = (x - dirX * falloff) - x0
+                        sampleY = (y - dirY * falloff) - y0
+                    } else {
+                        val normDist = sqrt(normDistSq)
+                        val warp = 1.0f - pinchFactor * (1.0f - normDist)
+                        sampleX = (cx + dx * warp) - x0
+                        sampleY = (cy + dy * warp) - y0
+                    }
+
+                    val sx = sampleX.coerceIn(0f, maxBx.toFloat())
+                    val sy = sampleY.coerceIn(0f, maxBy.toFloat())
+                    val ix = sx.toInt().coerceAtMost(maxBx)
+                    val iy = sy.toInt().coerceAtMost(maxBy)
+                    val nx = (ix + 1).coerceAtMost(maxBx)
+                    val ny = (iy + 1).coerceAtMost(maxBy)
+                    val fx = sx - ix
+                    val fy = sy - iy
+
+                    val c00 = srcBuffer[iy * bWidth + ix]
+                    val c10 = srcBuffer[iy * bWidth + nx]
+                    val c01 = srcBuffer[ny * bWidth + ix]
+                    val c11 = srcBuffer[ny * bWidth + nx]
+
+                    val w00 = (1f - fx) * (1f - fy)
+                    val w10 = fx * (1f - fy)
+                    val w01 = (1f - fx) * fy
+                    val w11 = fx * fy
+
+                    val a = (((c00 ushr 24) and 0xFF) * w00 + ((c10 ushr 24) and 0xFF) * w10 +
+                        ((c01 ushr 24) and 0xFF) * w01 + ((c11 ushr 24) and 0xFF) * w11).roundToInt().coerceIn(0, 255)
+                    val r = (((c00 shr 16) and 0xFF) * w00 + ((c10 shr 16) and 0xFF) * w10 +
+                        ((c01 shr 16) and 0xFF) * w01 + ((c11 shr 16) and 0xFF) * w11).roundToInt().coerceIn(0, 255)
+                    val g = (((c00 shr 8) and 0xFF) * w00 + ((c10 shr 8) and 0xFF) * w10 +
+                        ((c01 shr 8) and 0xFF) * w01 + ((c11 shr 8) and 0xFF) * w11).roundToInt().coerceIn(0, 255)
+                    val b = ((c00 and 0xFF) * w00 + (c10 and 0xFF) * w10 +
+                        (c01 and 0xFF) * w01 + (c11 and 0xFF) * w11).roundToInt().coerceIn(0, 255)
+
+                    dstBuffer[rowOffset + (x - x0)] = (a shl 24) or (r shl 16) or (g shl 8) or b
                 }
             }
         }

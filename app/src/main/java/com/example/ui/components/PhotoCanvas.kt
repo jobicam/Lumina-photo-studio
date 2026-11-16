@@ -65,7 +65,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
-import com.example.model.BlemishSuggestion
 import com.example.model.CropRect
 import com.example.model.HistogramData
 import com.example.model.RetouchType
@@ -92,6 +91,8 @@ fun PhotoCanvas(
     isRetouchMode: Boolean,
     retouchType: RetouchType,
     brushRadius: Float,
+    brushIntensity: Float = 0.75f,
+    isEraser: Boolean = false,
     isComparing: Boolean,
     isSplitView: Boolean,
     splitRatio: Float,
@@ -99,7 +100,6 @@ fun PhotoCanvas(
     isCropMode: Boolean = false,
     cropRect: CropRect = CropRect(),
     lockedCropRatio: Float? = null,
-    suggestedBlemishes: List<BlemishSuggestion> = emptyList(),
     isBlurFocusMode: Boolean = false,
     blurFocusX: Float = 0.50f,
     blurFocusY: Float = 0.42f,
@@ -160,8 +160,8 @@ fun PhotoCanvas(
                                         val cy = containerHeight / 2f
                                         val contentX = (tapPos.x - cx - offset.x) / scale + cx
                                         val contentY = (tapPos.y - cy - offset.y) / scale + cy
-                                        val normX = ((contentX - imgLeft) / renderW).coerceIn(0f, 1f)
-                                        val normY = ((contentY - imgTop) / renderH).coerceIn(0f, 1f)
+                                        val normX = ((contentX - imgLeft) / renderW.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                                        val normY = ((contentY - imgTop) / renderH.coerceAtLeast(1f)).coerceIn(0f, 1f)
                                         latestOnBlurFocusChanged(normX, normY)
                                     }
                                 },
@@ -231,8 +231,8 @@ fun PhotoCanvas(
                                 currentPoints.clear()
                                 currentPoints.add(
                                     StrokePoint(
-                                        normX = ((startContent.x - imgLeft) / renderW).coerceIn(0f, 1f),
-                                        normY = ((startContent.y - imgTop) / renderH).coerceIn(0f, 1f)
+                                        normX = ((startContent.x - imgLeft) / renderW.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                                        normY = ((startContent.y - imgTop) / renderH.coerceAtLeast(1f)).coerceIn(0f, 1f)
                                     )
                                 )
 
@@ -276,8 +276,8 @@ fun PhotoCanvas(
                                         activeTouchPos = contentPos
                                         currentPoints.add(
                                             StrokePoint(
-                                                normX = ((contentPos.x - imgLeft) / renderW).coerceIn(0f, 1f),
-                                                normY = ((contentPos.y - imgTop) / renderH).coerceIn(0f, 1f)
+                                                normX = ((contentPos.x - imgLeft) / renderW.coerceAtLeast(1f)).coerceIn(0f, 1f),
+                                                normY = ((contentPos.y - imgTop) / renderH.coerceAtLeast(1f)).coerceIn(0f, 1f)
                                             )
                                         )
                                     } else {
@@ -329,8 +329,8 @@ fun PhotoCanvas(
                                 image = originalBitmap.asImageBitmap(),
                                 srcOffset = IntOffset.Zero,
                                 srcSize = IntSize(originalBitmap.width, originalBitmap.height),
-                                dstOffset = IntOffset(imgLeft.toInt(), imgTop.toInt()),
-                                dstSize = IntSize(renderW.toInt(), renderH.toInt())
+                                dstOffset = IntOffset(imgLeft.roundToInt(), imgTop.roundToInt()),
+                                dstSize = IntSize(renderW.roundToInt().coerceAtLeast(1), renderH.roundToInt().coerceAtLeast(1))
                             )
                         }
 
@@ -343,8 +343,8 @@ fun PhotoCanvas(
                                 image = displayBitmap.asImageBitmap(),
                                 srcOffset = IntOffset.Zero,
                                 srcSize = IntSize(displayBitmap.width, displayBitmap.height),
-                                dstOffset = IntOffset(imgLeft.toInt(), imgTop.toInt()),
-                                dstSize = IntSize(renderW.toInt(), renderH.toInt())
+                                dstOffset = IntOffset(imgLeft.roundToInt(), imgTop.roundToInt()),
+                                dstSize = IntSize(renderW.roundToInt().coerceAtLeast(1), renderH.roundToInt().coerceAtLeast(1))
                             )
                         }
 
@@ -394,70 +394,39 @@ fun PhotoCanvas(
                     }
                 }
 
-                // Automated Blemish Detection suggestion markers
-                if (isRetouchMode &&
-                    retouchType == RetouchType.BLEMISH &&
-                    !isSplitView &&
-                    !isComparing &&
-                    suggestedBlemishes.isNotEmpty()
-                ) {
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("blemish_suggestions_overlay")
-                    ) {
-                        val minRenderDim = min(renderW, renderH)
-                        val strokeW = 1.8.dp.toPx()
-                        val minTargetPx = 10.dp.toPx()
-                        val maxTargetPx = 30.dp.toPx()
-
-                        for (spot in suggestedBlemishes) {
-                            val cx = imgLeft + spot.normX * renderW
-                            val cy = imgTop + spot.normY * renderH
-                            val targetR = (spot.normRadius * minRenderDim).coerceIn(minTargetPx, maxTargetPx)
-
-                            drawCircle(
-                                color = AccentAmber.copy(alpha = 0.14f),
-                                radius = targetR,
-                                center = Offset(cx, cy)
-                            )
-                            drawCircle(
-                                color = AccentAmber.copy(alpha = 0.92f),
-                                radius = targetR,
-                                center = Offset(cx, cy),
-                                style = Stroke(width = strokeW)
-                            )
-                            drawCircle(
-                                color = Color.White.copy(alpha = 0.75f),
-                                radius = (targetR + 2.dp.toPx()),
-                                center = Offset(cx, cy),
-                                style = Stroke(width = 0.9.dp.toPx())
-                            )
-                            drawCircle(
-                                color = AccentCyan,
-                                radius = 2.dp.toPx(),
-                                center = Offset(cx, cy)
-                            )
-                        }
-                    }
-                }
-
                 // Brush cursor ring indicator for Retouch mode
                 if (isRetouchMode && activeTouchPos != null) {
                     val pos = activeTouchPos!!
                     val cursorRadiusPx = (brushRadius * min(renderW, renderH) / 400f).coerceAtLeast(10f)
+                    val cursorColor = if (isEraser) AccentAmber else retouchToolAccent(retouchType)
+                    val fillAlpha = (0.14f + brushIntensity * 0.24f).coerceIn(0.14f, 0.38f)
 
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawCircle(
-                            color = AccentCyan.copy(alpha = 0.28f),
+                            color = cursorColor.copy(alpha = fillAlpha),
                             radius = cursorRadiusPx,
                             center = pos
                         )
+                        // Subtle white outer contrast halo
                         drawCircle(
-                            color = AccentCyan,
+                            color = Color.White.copy(alpha = 0.55f),
+                            radius = cursorRadiusPx + 1.5.dp.toPx(),
+                            center = pos,
+                            style = Stroke(width = 1.dp.toPx())
+                        )
+                        drawCircle(
+                            color = cursorColor,
                             radius = cursorRadiusPx,
                             center = pos,
-                            style = Stroke(width = 2.dp.toPx())
+                            style = Stroke(
+                                width = 2.dp.toPx(),
+                                pathEffect = if (isEraser) {
+                                    androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                                        floatArrayOf(10f, 7f),
+                                        0f
+                                    )
+                                } else null
+                            )
                         )
                         drawCircle(
                             color = Color.White,
@@ -554,27 +523,22 @@ fun PhotoCanvas(
             }
         }
 
-        // Detected blemish suggestion count pill
-        if (isRetouchMode &&
-            retouchType == RetouchType.BLEMISH &&
-            !isSplitView &&
-            !isComparing &&
-            suggestedBlemishes.isNotEmpty()
-        ) {
+        // Restore Brush active indicator pill
+        if (isRetouchMode && isEraser && !isSplitView && !isComparing) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 12.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(StudioSurface.copy(alpha = 0.88f))
-                    .border(1.dp, AccentAmber.copy(alpha = 0.65f), RoundedCornerShape(16.dp))
+                    .background(StudioSurface.copy(alpha = 0.90f))
+                    .border(1.dp, AccentAmber.copy(alpha = 0.75f), RoundedCornerShape(16.dp))
                     .padding(horizontal = 12.dp, vertical = 5.dp)
-                    .testTag("blemish_suggestions_badge")
+                    .testTag("restore_brush_active_badge")
             ) {
                 Text(
-                    text = AppStrings.blemishOverlayHint(suggestedBlemishes.size, lang),
+                    text = AppStrings.retouchRestoreModeBadge(lang),
                     color = AccentAmber,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -690,7 +654,6 @@ private fun ZoomControlsBar(
             onClick = onZoomOut,
             enabled = canZoomOut,
             modifier = Modifier
-                .size(40.dp)
                 .minimumInteractiveComponentSize()
                 .testTag("zoom_out_button")
         ) {
@@ -725,7 +688,6 @@ private fun ZoomControlsBar(
             onClick = onZoomIn,
             enabled = canZoomIn,
             modifier = Modifier
-                .size(40.dp)
                 .minimumInteractiveComponentSize()
                 .testTag("zoom_in_button")
         ) {
@@ -809,8 +771,8 @@ private fun InteractiveCropOverlay(
                                 applyCropDrag(
                                     rect = latestCropRect,
                                     handle = handle,
-                                    dxNorm = delta.x / renderW,
-                                    dyNorm = delta.y / renderH,
+                                    dxNorm = delta.x / renderW.coerceAtLeast(1f),
+                                    dyNorm = delta.y / renderH.coerceAtLeast(1f),
                                     lockedRatio = latestRatio,
                                     renderW = renderW,
                                     renderH = renderH

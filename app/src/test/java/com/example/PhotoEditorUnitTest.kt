@@ -273,7 +273,7 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.skinSmoothBannerTitle(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.7"))
+        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.8"))
         assertTrue(com.example.util.AppStrings.zoomIn(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomIn(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomOut(en).isNotBlank())
@@ -482,5 +482,40 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.protectSubjectLabel(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.blurFocusHint(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.blurFocusHint(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.statusCacheClearFailed(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.statusCacheClearFailed(km).isNotBlank())
+
+        val manifestJson = com.example.processing.AppUpdateChecker.buildVersionManifestJson(
+            versionCode = 14L,
+            versionName = "2.8.0"
+        )
+        assertTrue(manifestJson.contains("Retouch Studio"))
+        assertTrue(manifestJson.contains("Background Blur"))
+    }
+
+    @Test
+    fun testRetouchStudio_categoriesAndBilingualStrings() {
+        val en = com.example.model.AppLanguage.ENGLISH
+        val km = com.example.model.AppLanguage.KHMER
+
+        assertTrue(com.example.util.AppStrings.retouchStudioTitle(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.retouchStudioTitle(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.retouchStudioDesc(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.retouchStudioDesc(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.restoreBrushLabel(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.restoreBrushLabel(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.restoreBrushSubtitle(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.restoreBrushSubtitle(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.retouchRestoreModeBadge(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.retouchRestoreModeBadge(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.sculptDragHint(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.sculptDragHint(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.statusRetouchRestored(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.statusRetouchRestored(km).isNotBlank())
+
+        assertEquals(6, com.example.model.RetouchType.values().size)
+        assertFalse(com.example.model.RetouchType.values().any { it.name == "BLEMISH" })
+        val categories = com.example.model.RetouchType.values().map { it.category }.toSet()
+        assertEquals(com.example.model.RetouchCategory.values().toSet(), categories)
     }
 }

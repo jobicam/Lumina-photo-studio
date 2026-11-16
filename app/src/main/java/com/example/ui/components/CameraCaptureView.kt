@@ -263,7 +263,9 @@ fun CameraCaptureView(
         var activeProvider: ProcessCameraProvider? = null
         var disposed = false
         val analysisExecutor = Executors.newSingleThreadExecutor()
+        val mainExecutor = ContextCompat.getMainExecutor(context)
         var lastProcessedNs = 0L
+        livePreviewFrame = null
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
@@ -326,7 +328,15 @@ fun CameraCaptureView(
                                 val compact = BitmapProcessor.downscaleIfNeeded(oriented, 640)
                                 if (compact !== oriented) oriented.recycle()
                                 if (!disposed) {
-                                    livePreviewFrame = compact
+                                    mainExecutor.execute {
+                                        if (!disposed) {
+                                            livePreviewFrame = compact
+                                        } else if (!compact.isRecycled) {
+                                            compact.recycle()
+                                        }
+                                    }
+                                } else if (!compact.isRecycled) {
+                                    compact.recycle()
                                 }
                             }
                         }
@@ -362,10 +372,12 @@ fun CameraCaptureView(
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-        }, ContextCompat.getMainExecutor(context))
+        }, mainExecutor)
 
         onDispose {
             disposed = true
+            imageCapture = null
+            livePreviewFrame = null
             activeProvider?.unbindAll()
             analysisExecutor.shutdownNow()
         }

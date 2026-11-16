@@ -174,7 +174,7 @@ object AppUpdateChecker {
     fun buildVersionManifestJson(
         versionCode: Long = BuildConfig.VERSION_CODE.toLong(),
         versionName: String = BuildConfig.VERSION_NAME,
-        releaseNotes: String = "Photo Zoom In/Out (1.0x-6.0x) with two-finger retouch pan, automated skin blemish detection, and upgraded spot healing.",
+        releaseNotes: String = "Redesigned Retouch Studio with Restore Brush and directional Sculpt & Warp, plus Portrait Background Blur (Bokeh) and Photo Zoom (1.0x-6.0x).",
         downloadUrl: String = ""
     ): String {
         val adapter = moshi.adapter<Map<String, Any>>(mapType).indent("  ")

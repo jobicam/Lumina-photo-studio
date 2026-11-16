@@ -138,16 +138,25 @@ object ImageExporter {
         try {
             val cachePath = File(context.cacheDir, "images")
             cachePath.mkdirs()
-            val file = File(cachePath, "lumina_share_${System.currentTimeMillis()}.jpg")
-            FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+
+            // Prune temporary share images older than 24 hours
+            val cutoffMs = System.currentTimeMillis() - 86_400_000L
+            cachePath.listFiles()?.forEach { oldFile ->
+                if (oldFile.isFile && oldFile.lastModified() < cutoffMs) {
+                    runCatching { oldFile.delete() }
+                }
             }
 
-            val contentUri: Uri = try {
-                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            } catch (e: Exception) {
-                Uri.fromFile(file)
+            val file = File(cachePath, "lumina_share_${System.currentTimeMillis()}.jpg")
+            val compressed = FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
             }
+            if (!compressed) {
+                runCatching { file.delete() }
+                return@withContext Result.failure(Exception("Failed to encode photo for sharing"))
+            }
+
+            val contentUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/jpeg"

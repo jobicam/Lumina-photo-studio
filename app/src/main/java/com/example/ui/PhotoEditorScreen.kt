@@ -77,7 +77,6 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,6 +91,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.components.AdjustPanel
 import com.example.ui.components.CropPanel
 import com.example.ui.components.CurvesPanel
@@ -123,7 +123,7 @@ fun PhotoEditorScreen(
     viewModel: PhotoEditorViewModel,
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val lang = uiState.settings.appLanguage
     var showPhotoPicker by remember { mutableStateOf(false) }
@@ -181,7 +181,11 @@ fun PhotoEditorScreen(
                 onToggleSplit = { viewModel.toggleSplitView() },
                 onShare = {
                     viewModel.shareImage { shareIntent ->
-                        context.startActivity(shareIntent)
+                        try {
+                            context.startActivity(shareIntent)
+                        } catch (_: Exception) {
+                            Toast.makeText(context, AppStrings.statusShareFailed(lang, null), Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 onSave = requestSaveAction
@@ -215,6 +219,8 @@ fun PhotoEditorScreen(
                     isRetouchMode = uiState.activeTab == EditorTab.RETOUCH,
                     retouchType = uiState.activeRetouchTool,
                     brushRadius = uiState.brushRadius,
+                    brushIntensity = uiState.brushIntensity,
+                    isEraser = uiState.isEraser,
                     isComparing = uiState.isComparing,
                     isSplitView = uiState.isSplitView,
                     splitRatio = uiState.splitRatio,
@@ -222,7 +228,6 @@ fun PhotoEditorScreen(
                     isCropMode = isCropMode,
                     cropRect = uiState.pendingCropRect,
                     lockedCropRatio = lockedCropRatio,
-                    suggestedBlemishes = uiState.suggestedBlemishes,
                     isBlurFocusMode = isBlurFocusMode,
                     blurFocusX = uiState.adjustments.blurFocusX,
                     blurFocusY = uiState.adjustments.blurFocusY,
@@ -400,9 +405,10 @@ fun PhotoEditorScreen(
                             EditorTab.CURVES -> 296.dp
                             EditorTab.CROP -> 268.dp
                             EditorTab.RETOUCH -> if (
+                                uiState.isEraser ||
                                 uiState.activeRetouchTool == com.example.model.RetouchType.SKIN_SMOOTH ||
-                                uiState.activeRetouchTool == com.example.model.RetouchType.BLEMISH
-                            ) 276.dp else 215.dp
+                                uiState.activeRetouchTool == com.example.model.RetouchType.SCULPT
+                            ) 280.dp else 232.dp
                             EditorTab.ADJUST -> if (
                                 uiState.activeAdjustCategory == com.example.model.AdjustCategory.EFFECTS &&
                                 uiState.adjustments.backgroundBlur > 0f
@@ -437,15 +443,11 @@ fun PhotoEditorScreen(
                                 onSelectTool = { viewModel.selectRetouchTool(it) },
                                 onRadiusChanged = { viewModel.setBrushRadius(it) },
                                 onIntensityChanged = { viewModel.setBrushIntensity(it) },
+                                isEraser = uiState.isEraser,
+                                onToggleEraser = { viewModel.toggleEraser() },
                                 texturePreserve = uiState.texturePreserve,
                                 onTexturePreserveChanged = { viewModel.setTexturePreserve(it) },
                                 onAutoSkinSmooth = { viewModel.applyAutoSkinSmoothing() },
-                                suggestedBlemishCount = uiState.suggestedBlemishes.size,
-                                blemishSensitivity = uiState.blemishSensitivity,
-                                onBlemishSensitivityChanged = { viewModel.setBlemishSensitivity(it) },
-                                onDetectBlemishes = { viewModel.detectBlemishes() },
-                                onHealAllBlemishes = { viewModel.healAllSuggestedBlemishes() },
-                                onClearBlemishSuggestions = { viewModel.clearBlemishSuggestions() },
                                 onOpenBackgroundBlur = { viewModel.openBackgroundBlurTool() },
                                 lang = lang,
                                 hapticFeedback = hapticsEnabled
@@ -634,7 +636,11 @@ fun PhotoEditorScreen(
                 lang = lang,
                 onShare = {
                     viewModel.shareImage { shareIntent ->
-                        context.startActivity(shareIntent)
+                        try {
+                            context.startActivity(shareIntent)
+                        } catch (_: Exception) {
+                            Toast.makeText(context, AppStrings.statusShareFailed(lang, null), Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
                 onDismiss = { viewModel.closeSaveSuccessModal() }
@@ -679,7 +685,8 @@ private fun TopEditorBar(
             IconButton(
                 onClick = onNavigateHome,
                 modifier = Modifier
-                    .size(38.dp)
+                    .width(40.dp)
+                    .height(48.dp)
                     .testTag("editor_back_to_home")
             ) {
                 Icon(
@@ -694,7 +701,8 @@ private fun TopEditorBar(
                 onClick = onUndo,
                 enabled = canUndo,
                 modifier = Modifier
-                    .size(36.dp)
+                    .width(38.dp)
+                    .height(48.dp)
                     .testTag("undo_button")
             ) {
                 Icon(
@@ -709,7 +717,8 @@ private fun TopEditorBar(
                 onClick = onRedo,
                 enabled = canRedo,
                 modifier = Modifier
-                    .size(36.dp)
+                    .width(38.dp)
+                    .height(48.dp)
                     .testTag("redo_button")
             ) {
                 Icon(
@@ -723,7 +732,8 @@ private fun TopEditorBar(
             IconButton(
                 onClick = onToggleSplit,
                 modifier = Modifier
-                    .size(36.dp)
+                    .width(38.dp)
+                    .height(48.dp)
                     .testTag("toggle_split_view_button")
             ) {
                 Icon(
@@ -743,7 +753,8 @@ private fun TopEditorBar(
             IconButton(
                 onClick = onShare,
                 modifier = Modifier
-                    .size(36.dp)
+                    .width(38.dp)
+                    .height(48.dp)
                     .testTag("share_button")
             ) {
                 Icon(
@@ -759,7 +770,8 @@ private fun TopEditorBar(
                 IconButton(
                     onClick = { showMenu = true },
                     modifier = Modifier
-                        .size(36.dp)
+                        .width(38.dp)
+                        .height(48.dp)
                         .testTag("editor_more_options_button")
                 ) {
                     Icon(

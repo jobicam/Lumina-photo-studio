@@ -89,8 +89,7 @@ fun SaveSuccessModal(
                     horizontalArrangement = Arrangement.End
                 ) {
                     IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(32.dp)
+                        onClick = onDismiss
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,

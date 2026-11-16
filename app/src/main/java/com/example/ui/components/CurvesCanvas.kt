@@ -43,7 +43,7 @@ fun CurvesCanvas(
     histogram: HistogramData? = null,
     onEditFinished: () -> Unit = {}
 ) {
-    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var draggedIndex by remember(channel) { mutableStateOf<Int?>(null) }
 
     val latestCurve by rememberUpdatedState(curve)
     val latestOnCurveChanged by rememberUpdatedState(onCurveChanged)

@@ -7,9 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v2.7.0)'
+        description: 'Release tag (e.g. v2.8.0)'
         required: true
-        default: 'v2.7.0'
+        default: 'v2.8.0'
+      apk_name:
+        description: 'APK file name (e.g. LuminaPhoto.apk)'
+        required: false
+        default: 'LuminaPhoto.apk'
+      release_title:
+        description: 'Release title (leave blank for Lumina Photo <tag>)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -137,11 +145,30 @@ jobs:
             echo "Error: Could not resolve release tag name." >&2
             exit 1
           fi
+
+          RAW_APK_NAME="${{ github.event.inputs.apk_name }}"
+          APK_NAME=$(basename "$(echo "$RAW_APK_NAME" | tr -d '\r\n' | xargs | tr ' ' '-')")
+          if [ -z "$APK_NAME" ] || [ "$APK_NAME" = "." ] || [ "$APK_NAME" = ".." ]; then
+            APK_NAME="LuminaPhoto.apk"
+          fi
+          case "$APK_NAME" in
+            *.apk|*.APK) ;;
+            *) APK_NAME="${APK_NAME}.apk" ;;
+          esac
+
+          RAW_TITLE="${{ github.event.inputs.release_title }}"
+          RELEASE_TITLE=$(echo "$RAW_TITLE" | tr -d '\r\n' | xargs)
+          if [ -z "$RELEASE_TITLE" ]; then
+            RELEASE_TITLE="Lumina Photo $TAG_NAME"
+          fi
+
           echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
+          echo "APK_NAME=$APK_NAME" >> "$GITHUB_ENV"
+          echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
 
           test -s app/build/outputs/apk/debug/app-debug.apk
-          cp -f app/build/outputs/apk/debug/app-debug.apk LuminaPhoto.apk
-          APK_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/LuminaPhoto.apk"
+          cp -f app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          APK_URL="https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/${APK_NAME}"
           jq --arg url "$APK_URL" '.downloadUrl = $url' version.json > version.release.json
           mv -f version.release.json version.json
 
@@ -150,7 +177,7 @@ jobs:
         with:
           name: LuminaPhoto-${{ env.TAG_NAME }}
           path: |
-            LuminaPhoto.apk
+            ${{ env.APK_NAME }}
             version.json
 
       - name: Publish GitHub Release
@@ -159,17 +186,17 @@ jobs:
         run: |
           NOTES=$(jq -r '.releaseNotes // "Lumina Photo release"' version.json)
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" LuminaPhoto.apk version.json --clobber
-            gh release edit "$TAG_NAME" --title "Lumina Photo $TAG_NAME" --notes "$NOTES"
+            gh release upload "$TAG_NAME" "$APK_NAME" version.json --clobber
+            gh release edit "$TAG_NAME" --title "$RELEASE_TITLE" --notes "$NOTES"
           else
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              gh release create "$TAG_NAME" LuminaPhoto.apk version.json \
+              gh release create "$TAG_NAME" "$APK_NAME" version.json \
                 --target "${{ github.sha }}" \
-                --title "Lumina Photo $TAG_NAME" \
+                --title "$RELEASE_TITLE" \
                 --notes "$NOTES"
             else
-              gh release create "$TAG_NAME" LuminaPhoto.apk version.json \
-                --title "Lumina Photo $TAG_NAME" \
+              gh release create "$TAG_NAME" "$APK_NAME" version.json \
+                --title "$RELEASE_TITLE" \
                 --notes "$NOTES"
             fi
           fi || {

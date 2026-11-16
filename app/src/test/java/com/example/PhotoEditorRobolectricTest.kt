@@ -98,27 +98,21 @@ class PhotoEditorRobolectricTest {
     }
 
     @Test
-    fun testApplyRetouchStroke_singleTapBlemishHeal() {
+    fun testApplyRetouchStroke_eyePopBrightensTargetRegion() {
         val bmp = Bitmap.createBitmap(40, 40, Bitmap.Config.ARGB_8888)
-        for (y in 0 until 40) {
-            for (x in 0 until 40) {
-                bmp.setPixel(x, y, Color.rgb(210, 165, 140))
-            }
-        }
-        // Dark blemish spot right at center (20, 20)
-        bmp.setPixel(20, 20, Color.rgb(60, 40, 35))
+        bmp.eraseColor(Color.rgb(70, 110, 150))
 
         val stroke = RetouchStroke(
-            type = RetouchType.BLEMISH,
+            type = RetouchType.EYE_POP,
             points = listOf(StrokePoint(normX = 0.5f, normY = 0.5f)),
-            radius = 24f,
+            radius = 30f,
             intensity = 1.0f
         )
 
         BitmapProcessor.applyRetouchStroke(bmp, stroke)
-        val healedColor = bmp.getPixel(20, 20)
-        assertNotEquals("Single-tap blemish heal should modify the spot pixel", Color.rgb(60, 40, 35), healedColor)
-        assertTrue("Healed center pixel should brighten toward surrounding skin", Color.red(healedColor) > 120)
+        val brightened = bmp.getPixel(20, 20)
+        assertNotEquals("Eye Pop should enhance target pixel", Color.rgb(70, 110, 150), brightened)
+        assertTrue("Eye Pop should lift target brightness", Color.blue(brightened) > 150)
     }
 
     @Test
@@ -316,89 +310,8 @@ class PhotoEditorRobolectricTest {
         assertEquals("https://example.com/version.json", state.settings.updateFeedUrl)
         assertEquals("2.4.0", state.upgradedFromVersion)
         assertEquals(BuildConfig.VERSION_CODE, settingsPrefs.getInt("last_migrated_version_code", 0))
-    }
-
-    @Test
-    fun testBlemishDetector_ignoresCleanSkinAndNonSkinRegions() {
-        val cleanSkin = Bitmap.createBitmap(160, 160, Bitmap.Config.ARGB_8888)
-        for (y in 0 until 160) {
-            for (x in 0 until 160) {
-                if (x < 120) {
-                    cleanSkin.setPixel(x, y, Color.rgb(215, 165, 140))
-                } else {
-                    // Blue non-skin background with a dark spot that must be ignored
-                    val dx = x - 140
-                    val dy = y - 80
-                    if (dx * dx + dy * dy <= 25) {
-                        cleanSkin.setPixel(x, y, Color.rgb(10, 30, 100))
-                    } else {
-                        cleanSkin.setPixel(x, y, Color.rgb(25, 95, 225))
-                    }
-                }
-            }
-        }
-
-        val suggestions = com.example.processing.BlemishDetector.detectBlemishes(cleanSkin, sensitivity = 0.7f)
-        assertTrue("Clean skin and non-skin spots should yield 0 suggestions, got ${suggestions.size}", suggestions.isEmpty())
-    }
-
-    @Test
-    fun testBlemishDetector_detectsCompactSkinBlobsAndSupportsHealing() {
-        val portrait = Bitmap.createBitmap(160, 160, Bitmap.Config.ARGB_8888)
-        for (y in 0 until 160) {
-            for (x in 0 until 160) {
-                if (x in 16..143 && y in 16..143) {
-                    portrait.setPixel(x, y, Color.rgb(215, 165, 140))
-                } else {
-                    // Non-skin border
-                    portrait.setPixel(x, y, Color.rgb(30, 90, 210))
-                }
-            }
-        }
-
-        // Paint two distinct blemish blobs inside the skin region
-        val spot1X = 48 // normX = 0.30
-        val spot1Y = 56 // normY = 0.35
-        val spot2X = 112 // normX = 0.70
-        val spot2Y = 96 // normY = 0.60
-        for (y in 0 until 160) {
-            for (x in 0 until 160) {
-                val d1 = (x - spot1X) * (x - spot1X) + (y - spot1Y) * (y - spot1Y)
-                val d2 = (x - spot2X) * (x - spot2X) + (y - spot2Y) * (y - spot2Y)
-                if (d1 <= 20) {
-                    // Reddish inflamed blemish
-                    portrait.setPixel(x, y, Color.rgb(170, 92, 82))
-                } else if (d2 <= 20) {
-                    // Darker brownish spot
-                    portrait.setPixel(x, y, Color.rgb(125, 84, 70))
-                }
-            }
-        }
-
-        val detected = com.example.processing.BlemishDetector.detectBlemishes(portrait, sensitivity = 0.65f)
-        assertEquals("Should detect exactly the 2 skin blemishes", 2, detected.size)
-
-        val nearSpot1 = detected.any { kotlin.math.hypot((it.normX - 0.30f).toDouble(), (it.normY - 0.35f).toDouble()) < 0.05 }
-        val nearSpot2 = detected.any { kotlin.math.hypot((it.normX - 0.70f).toDouble(), (it.normY - 0.60f).toDouble()) < 0.05 }
-        assertTrue("Expected suggestion near (0.30, 0.35), got $detected", nearSpot1)
-        assertTrue("Expected suggestion near (0.70, 0.60), got $detected", nearSpot2)
-
-        // Heal all detected spots using the same normalized 400px reference radius as PhotoEditorViewModel
-        val healed = portrait.copy(Bitmap.Config.ARGB_8888, true)
-        for (s in detected) {
-            BitmapProcessor.applyRetouchStroke(
-                healed,
-                RetouchStroke(
-                    type = RetouchType.BLEMISH,
-                    points = listOf(StrokePoint(s.normX, s.normY)),
-                    radius = (s.normRadius * 400f * 1.35f).coerceIn(16f, 60f),
-                    intensity = 1.0f
-                )
-            )
-        }
-
-        val afterHeal = com.example.processing.BlemishDetector.detectBlemishes(healed, sensitivity = 0.65f)
-        assertTrue("Re-scanning after healing all suggested spots should find fewer/no spots (got ${afterHeal.size})", afterHeal.isEmpty())
+        assertEquals("2.8.0", BuildConfig.VERSION_NAME)
+        assertEquals(14, BuildConfig.VERSION_CODE)
     }
 
     @Test
@@ -500,5 +413,162 @@ class PhotoEditorRobolectricTest {
             "Protect Subject should preserve skin detail ($protectedRange) vs unprotected ($unprotectedRange)",
             protectedRange > unprotectedRange + 15
         )
+    }
+
+    @Test
+    fun testViewModel_tabSelectionAndBackgroundBlurResetSplitViewAndPreserveInitialTab() {
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.viewmodel.PhotoEditorViewModel(app)
+
+        // Wait briefly for init background sample load to settle cleanly
+        val deadline = System.currentTimeMillis() + 5000L
+        while (vm.uiState.value.workingBitmap == null && System.currentTimeMillis() < deadline) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            Thread.sleep(20)
+        }
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        // Split view should auto-disable when switching to interactive Retouch or Crop tools
+        vm.toggleSplitView()
+        assertTrue(vm.uiState.value.isSplitView)
+        vm.selectTab(com.example.viewmodel.EditorTab.RETOUCH)
+        assertEquals(com.example.viewmodel.EditorTab.RETOUCH, vm.uiState.value.activeTab)
+        assertTrue("Split view should turn off when entering Retouch", !vm.uiState.value.isSplitView)
+
+        vm.toggleSplitView()
+        assertTrue(vm.uiState.value.isSplitView)
+        vm.selectTab(com.example.viewmodel.EditorTab.CROP)
+        assertEquals(com.example.viewmodel.EditorTab.CROP, vm.uiState.value.activeTab)
+        assertTrue("Split view should turn off when entering Crop", !vm.uiState.value.isSplitView)
+
+        // Quick Background Blur shortcut should enable blur, switch to Effects, and disable split view
+        vm.toggleSplitView()
+        assertTrue(vm.uiState.value.isSplitView)
+        vm.openBackgroundBlurTool()
+        assertEquals(com.example.viewmodel.EditorTab.ADJUST, vm.uiState.value.activeTab)
+        assertEquals(com.example.model.AdjustCategory.EFFECTS, vm.uiState.value.activeAdjustCategory)
+        assertEquals(50f, vm.uiState.value.adjustments.backgroundBlur, 0.01f)
+        assertTrue("Split view should turn off for tap-to-focus Background Blur", !vm.uiState.value.isSplitView)
+
+        // Loading a sample photo with an explicit initialTab should keep that tab instead of reverting to FILTERS
+        vm.loadSamplePhoto(
+            isPortrait = false,
+            autoNavigate = true,
+            initialTab = com.example.viewmodel.EditorTab.CURVES
+        )
+        val navDeadline = System.currentTimeMillis() + 5000L
+        while ((vm.uiState.value.currentScreen != com.example.viewmodel.AppScreen.EDITOR || vm.uiState.value.isProcessing) &&
+            System.currentTimeMillis() < navDeadline
+        ) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            Thread.sleep(20)
+        }
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(com.example.viewmodel.AppScreen.EDITOR, vm.uiState.value.currentScreen)
+        assertEquals(com.example.viewmodel.EditorTab.CURVES, vm.uiState.value.activeTab)
+    }
+
+    @Test
+    fun testImageExporter_shareBitmapUsesContentUriAndPrunesStaleCacheFiles() {
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        val cacheImages = java.io.File(app.cacheDir, "images").apply { mkdirs() }
+        val staleFile = java.io.File(cacheImages, "lumina_share_stale.jpg").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            setLastModified(System.currentTimeMillis() - 100_000_000L)
+        }
+
+        val bmp = Bitmap.createBitmap(16, 16, Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(Color.CYAN)
+
+        val result = kotlinx.coroutines.runBlocking {
+            com.example.processing.ImageExporter.shareBitmap(app, bmp)
+        }
+        assertTrue("shareBitmap should succeed with FileProvider content URI", result.isSuccess)
+        assertTrue("Expired share cache files (>24h) should be pruned", !staleFile.exists())
+
+        val chooserIntent = result.getOrThrow()
+        @Suppress("DEPRECATION")
+        val targetIntent = chooserIntent.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)
+        @Suppress("DEPRECATION")
+        val streamUri = targetIntent?.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)
+        assertEquals("content", streamUri?.scheme)
+    }
+
+    @Test
+    fun testRetouchRestoreBrush_restoresOriginalPixelsAndSculptWarpsSmoothly() {
+        val original = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 64) {
+            for (x in 0 until 64) {
+                // Warm skin base with a vertical feature stripe at x == 32 for warp check
+                val c = if (x == 32) Color.rgb(120, 70, 55) else Color.rgb(215, 165, 140)
+                original.setPixel(x, y, c)
+            }
+        }
+
+        // Paint glow over center, then restore center back toward original
+        val working = original.copy(Bitmap.Config.ARGB_8888, true)
+        BitmapProcessor.applyRetouchStroke(
+            working,
+            RetouchStroke(
+                type = RetouchType.GLOW,
+                points = listOf(StrokePoint(0.5f, 0.5f)),
+                radius = 60f,
+                intensity = 1.0f
+            ),
+            original
+        )
+        val glowCenter = working.getPixel(32, 32)
+        assertNotEquals("Glow stroke should brighten center pixel", original.getPixel(32, 32), glowCenter)
+
+        BitmapProcessor.applyRetouchStroke(
+            working,
+            RetouchStroke(
+                type = RetouchType.GLOW,
+                points = listOf(StrokePoint(0.5f, 0.5f)),
+                radius = 60f,
+                intensity = 1.0f,
+                isEraser = true
+            ),
+            original
+        )
+        val restoredCenter = working.getPixel(32, 32)
+        assertEquals("Restore brush at 100% center should match original pixel", original.getPixel(32, 32), restoredCenter)
+        val adjacentDelta = kotlin.math.abs(Color.red(working.getPixel(31, 32)) - Color.red(original.getPixel(31, 32)))
+        assertTrue("Near-center pixel should restore close to original (delta=$adjacentDelta)", adjacentDelta <= 3)
+
+        // Directional Sculpt drag stroke across vertical stripe at (32, 32) -> rightwards
+        val sculptBmp = original.copy(Bitmap.Config.ARGB_8888, true)
+        BitmapProcessor.applyRetouchStroke(
+            sculptBmp,
+            RetouchStroke(
+                type = RetouchType.SCULPT,
+                points = listOf(
+                    StrokePoint(0.45f, 0.50f),
+                    StrokePoint(0.58f, 0.50f),
+                    StrokePoint(0.70f, 0.50f)
+                ),
+                radius = 55f,
+                intensity = 0.85f
+            ),
+            original
+        )
+        // Pixel slightly right of the original stripe at (34, 32) should shift darker toward the stripe
+        assertTrue(
+            "Directional sculpt drag should displace dark contour pixel rightward",
+            Color.red(sculptBmp.getPixel(34, 32)) < Color.red(original.getPixel(34, 32))
+        )
+    }
+
+    @Test
+    fun testViewModel_retouchEraserToggleAndToolSelection() {
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.viewmodel.PhotoEditorViewModel(app)
+
+        assertTrue(!vm.uiState.value.isEraser)
+        vm.toggleEraser()
+        assertTrue(vm.uiState.value.isEraser)
+        vm.selectRetouchTool(RetouchType.EYE_POP)
+        assertEquals(RetouchType.EYE_POP, vm.uiState.value.activeRetouchTool)
+        assertTrue("Selecting a retouch brush should exit Restore/Eraser mode", !vm.uiState.value.isEraser)
     }
 }

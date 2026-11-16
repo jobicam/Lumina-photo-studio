@@ -198,7 +198,7 @@ fun WhatsNewModal(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Section 1: CURRENT VERSION HIGHLIGHT (v2.7.0)
+            // Section 1: CURRENT VERSION HIGHLIGHT (v2.8.0)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -209,14 +209,14 @@ fun WhatsNewModal(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.ZoomIn,
+                    imageVector = Icons.Default.AutoFixHigh,
                     contentDescription = null,
                     tint = AccentCyan,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ព្រាលផ្ទៃក្រោយ & ពង្រីករូប" else "What's New in v$versionName — Background Blur & Photo Zoom",
+                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ស្ទូឌីយោ Retouch ថ្មី" else "What's New in v$versionName — Redesigned Retouch Studio",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = AccentCyan
@@ -227,43 +227,33 @@ fun WhatsNewModal(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 WhatsNewItem(
-                    icon = Icons.Default.ZoomIn,
-                    iconTint = AccentCyan,
-                    title = if (isKhmer) "ពង្រីក / បង្រួមរូបភាព (1.0x–6.0x) ពេលកែសម្រួល" else "Precision Photo Zoom In / Out & Retouch Pan",
-                    description = if (isKhmer)
-                        "ប្រើប៊ូតុង + / - ឬម្រាមដៃពីរដើម្បីពង្រីករហូតដល់ 6.0x និងអូសរំកិលរូបភាពបានយ៉ាងងាយស្រួល ទោះជាកំពុងប្រើជក់ Retouch ក៏ដោយ។"
-                    else
-                        "Zoom up to 6.0x with quick + / - / 1.0x buttons, double-tap, or 2-finger pinch & pan right inside Retouch mode for fine detail editing."
-                )
-
-                WhatsNewItem(
                     icon = Icons.Default.AutoFixHigh,
-                    iconTint = AccentAmber,
-                    title = if (isKhmer) "ស្វែងរក & លុបស្នាមអុចខ្មៅដោយស្វ័យប្រវត្តិ" else "Automated Skin Blemish Blob Detection",
+                    iconTint = AccentPink,
+                    title = if (isKhmer) "រចនាស្ទូឌីយោ Retouch ថ្មី & ជក់ Restore" else "Redesigned Retouch Studio & Restore Brush",
                     description = if (isKhmer)
-                        "ស្កេនតំបន់ស្បែកដោយស្វ័យប្រវត្តិ បង្ហាញរង្វង់ណែនាំ ចុចលើចំណុចនីមួយៗ ឬចុចលុបទាំងអស់ក្នុងពេលតែមួយ។"
+                        "កាតជក់តាមពណ៌ ការមើលទំហំជក់ផ្ទាល់ ប៊ូតុង S/M/L និងជក់ Restore ដើម្បីស្ដារផ្ទៃរូបភាពដើមដោយរលូន។"
                     else
-                        "Detects compact blemishes strictly inside skin regions with sensitivity control, tap-to-heal target rings, and 1-tap Heal All."
+                        "Accent-coded brush dock, live nib preview with S/M/L presets, and a working Restore Brush to paint back original unretouched pixels."
                 )
 
                 WhatsNewItem(
                     icon = Icons.Default.AutoAwesome,
                     iconTint = AccentPurple,
-                    title = if (isKhmer) "ព្រាលផ្ទៃខាងក្រោយ (Portrait Bokeh)" else "Background Blur & Tap-to-Focus Bokeh",
+                    title = if (isKhmer) "កែទម្រង់មុខ Directional Sculpt & Warp" else "Directional Bilinear Sculpt & Warp",
                     description = if (isKhmer)
-                        "ព្រាលផ្ទៃខាងក្រោយដោយស្វ័យប្រវត្តិ ដោយរក្សាប្រធានបទឱ្យច្បាស់ និងចុចលើរូបដើម្បីកំណត់ចំណុចផ្ដោត។"
+                        "អូសដើម្បីរុញកែទម្រង់មុខតាមទិសដៅម្រាមដៃដោយរលូន និងមានគុណភាពច្បាស់។"
                     else
-                        "Smooth optical background bokeh with adjustable focus size, subject protection, and tap-anywhere refocusing under Adjust → Effects."
+                        "Smooth directional forward-push contour shaping with bilinear sampling and Hermite brush falloff."
                 )
 
                 WhatsNewItem(
-                    icon = Icons.Default.Face,
-                    iconTint = AccentPink,
-                    title = if (isKhmer) "ធ្វើឱ្យប្រសើរឡើងនូវការបំបាត់ស្នាម & កំណែ v$versionName" else "Clean Spot Blend & v$versionName Update",
+                    icon = Icons.Default.ZoomIn,
+                    iconTint = AccentCyan,
+                    title = if (isKhmer) "ព្រាលផ្ទៃខាងក្រោយ & ពង្រីករូប 1.0x–6.0x" else "Background Blur Bokeh & 6.0x Precision Zoom",
                     description = if (isKhmer)
-                        "ជ្រើសរើសពណ៌ស្បែកជុំវិញដោយធម្មជាតិ គ្មានស្នាមស្រអាប់ និងងាយស្រួលពិនិត្យអាប់ដេតកំណែថ្មី។"
+                        "ព្រាលផ្ទៃខាងក្រោយដោយចុចផ្ដោត និងពង្រីករូបភាពរហូតដល់ 6.0x ពេលកំពុង Retouch។"
                     else
-                        "Skin-prioritized boundary ring sampling with smoothstep falloff removes spots cleanly without dark halos."
+                        "Tap-to-focus portrait background bokeh with Subject Protection and 2-finger pinch/zoom right inside Retouch mode."
                 )
             }
 
@@ -307,6 +297,13 @@ fun WhatsNewModal(
             if (showPreviousVersions) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WhatsNewItem(
+                        icon = Icons.Default.ZoomIn,
+                        iconTint = AccentCyan,
+                        title = "v2.7.0: Background Blur (Bokeh) & Photo Zoom (1.0x–6.0x)",
+                        description = "Optical portrait background blur with tap-to-focus, Subject Protection, and pinch/zoom controls."
+                    )
+
                     WhatsNewItem(
                         icon = Icons.Default.Face,
                         iconTint = AccentPink,
@@ -388,7 +385,7 @@ fun WhatsNewModal(
                         icon = Icons.Default.Filter,
                         iconTint = AccentAmber,
                         title = "v1.0.0: Pro Retouching & 15+ Cinematic Filters",
-                        description = "Blemish healing, bilateral skin smoothing, teeth whitening, RGB tone curves, 8-channel HSL, and split-screen comparison."
+                        description = "Bilateral skin smoothing, teeth whitening, eye pop, RGB tone curves, 8-channel HSL, and split-screen comparison."
                     )
                 }
             }

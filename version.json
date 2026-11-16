@@ -1,7 +1,7 @@
 {
-  "versionCode": 13,
-  "versionName": "2.7.0",
-  "releaseNotes": "Added on-device Background Blur (Portrait Bokeh) with tap-to-focus, Focus Size & Protect Subject controls, alongside precision zoom (1.0x-6.0x) and automated skin blemish detection.",
+  "versionCode": 14,
+  "versionName": "2.8.0",
+  "releaseNotes": "Redesigned Retouch Studio with Restore Brush and directional Sculpt & Warp, plus Portrait Background Blur (Bokeh) and Photo Zoom (1.0x-6.0x).",
   "downloadUrl": "",
   "mandatory": false
 }
