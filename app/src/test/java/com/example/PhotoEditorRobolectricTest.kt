@@ -216,9 +216,12 @@ class PhotoEditorRobolectricTest {
             context,
             "https://api.github.com/repos/<owner>/<repo>/releases/latest"
         )
-        assertTrue("Placeholder URL should return actionable Error", placeholderUrl is com.example.model.UpdateStatus.Error)
-        assertTrue(
-            (placeholderUrl as com.example.model.UpdateStatus.Error).message.contains("<owner>")
+        assertTrue("Placeholder URL should return Error", placeholderUrl is com.example.model.UpdateStatus.Error)
+        assertEquals(
+            "https://api.github.com/repos/jobicam/Lumina-photo-studio/releases/latest",
+            com.example.processing.AppUpdateChecker.normalizeFeedUrl(
+                com.example.processing.AppUpdateChecker.DEFAULT_UPDATE_FEED_URL
+            )
         )
     }
 

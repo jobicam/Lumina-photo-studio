@@ -364,9 +364,18 @@ class PhotoEditorUnitTest {
         val km = com.example.model.AppLanguage.KHMER
         assertEquals("Updated from v2.4.0 → v2.5.0", com.example.util.AppStrings.updatedFromLabel("2.4.0", "2.5.0", en))
         assertTrue(com.example.util.AppStrings.updatedFromLabel("2.4.0", "2.5.0", km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.copyVersionManifest(km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.upgradeFeedHelper(km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.clearFeedUrl(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.updateSourceLabel(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.updateSourceLabel(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.customLinkDisabledNote(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.customLinkDisabledNote(km).isNotBlank())
+        assertEquals(
+            "https://github.com/jobicam/Lumina-photo-studio",
+            com.example.processing.AppUpdateChecker.DEFAULT_UPDATE_FEED_URL
+        )
+        assertEquals(
+            com.example.processing.AppUpdateChecker.DEFAULT_UPDATE_FEED_URL,
+            com.example.model.UserSettings().updateFeedUrl
+        )
 
         // GitHub web URL normalization -> API latest endpoint
         assertEquals(

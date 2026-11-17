@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.processing.AppUpdateChecker
+
 enum class AppLanguage(val code: String, val displayName: String, val nativeName: String) {
     SYSTEM("system", "System Default", "តាមប្រព័ន្ធ"),
     ENGLISH("en", "English", "English"),
@@ -21,5 +23,5 @@ data class UserSettings(
     val hapticFeedback: Boolean = true,
     val autoSaveDrafts: Boolean = true,
     val autoCheckUpdates: Boolean = true,
-    val updateFeedUrl: String = ""
+    val updateFeedUrl: String = AppUpdateChecker.DEFAULT_UPDATE_FEED_URL
 )

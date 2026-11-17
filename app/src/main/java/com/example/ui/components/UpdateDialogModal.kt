@@ -5,7 +5,6 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,8 +25,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -39,15 +37,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
@@ -69,7 +63,6 @@ import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.StudioBorder
 import com.example.ui.theme.StudioCard
 import com.example.ui.theme.StudioSurface
-import com.example.ui.theme.StudioSurfaceVariant
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.util.AppStrings
@@ -81,18 +74,14 @@ import java.util.Date
 fun UpdateCheckerModal(
     updateStatus: UpdateStatus,
     lastCheckedMillis: Long,
-    currentFeedUrl: String,
     lang: AppLanguage = AppLanguage.SYSTEM,
     onCheckAgain: () -> Unit,
-    onSaveFeedUrl: (String) -> Unit,
     onOpenWhatsNew: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
-    var showFeedConfig by remember { mutableStateOf(currentFeedUrl.isNotBlank()) }
-    var feedUrlInput by remember(currentFeedUrl) { mutableStateOf(currentFeedUrl) }
 
     val formattedTime = remember(lastCheckedMillis) {
         if (lastCheckedMillis <= 0L) {
@@ -283,30 +272,49 @@ fun UpdateCheckerModal(
                             color = ErrorRed,
                             lineHeight = 17.sp
                         )
-                        if (currentFeedUrl.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    feedUrlInput = ""
-                                    onSaveFeedUrl("")
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(42.dp)
-                                    .testTag("clear_update_feed_button")
-                            ) {
-                                Text(
-                                    text = AppStrings.clearFeedUrl(lang),
-                                    color = AccentCyan,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
                     }
                     else -> {}
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("built_in_update_source_row"),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = TextSecondary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = AppStrings.updateSourceLabel(lang),
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = AppUpdateChecker.DEFAULT_UPDATE_FEED_URL.removePrefix("https://"),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = AppStrings.customLinkDisabledNote(lang),
+                    fontSize = 10.sp,
+                    color = TextSecondary,
+                    lineHeight = 14.sp
+                )
             }
 
             // Download / Get Update CTA when available
@@ -392,132 +400,6 @@ fun UpdateCheckerModal(
                         lineHeight = 15.sp
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Optional Custom Release Feed URL Accordion
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(StudioCard)
-                    .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
-                    .clickable { showFeedConfig = !showFeedConfig }
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .testTag("toggle_update_feed_config"),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = AppStrings.updateFeedUrlLabel(lang),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-                Icon(
-                    imageVector = if (showFeedConfig) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            if (showFeedConfig) {
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = feedUrlInput,
-                    onValueChange = { feedUrlInput = it },
-                    placeholder = {
-                        Text(
-                            text = AppStrings.updateFeedUrlHint(lang),
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
-                    },
-                    trailingIcon = if (feedUrlInput.isNotEmpty()) {
-                        {
-                            IconButton(
-                                onClick = { feedUrlInput = "" },
-                                modifier = Modifier.testTag("clear_feed_input_icon")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Clear URL",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    } else null,
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentCyan,
-                        unfocusedBorderColor = StudioBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        cursorColor = AccentCyan
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("update_feed_url_input")
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { onSaveFeedUrl(feedUrlInput.trim()) },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .testTag("save_update_feed_button")
-                    ) {
-                        Text(
-                            text = AppStrings.saveUrl(lang),
-                            color = AccentCyan,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            val manifest = AppUpdateChecker.buildVersionManifestJson()
-                            clipboardManager.setText(AnnotatedString(manifest))
-                            Toast.makeText(context, AppStrings.manifestCopiedToast(lang), Toast.LENGTH_SHORT).show()
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .testTag("copy_version_manifest_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = null,
-                            tint = AccentAmber,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = AppStrings.copyVersionManifest(lang),
-                            color = AccentAmber,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = AppStrings.upgradeFeedHelper(lang),
-                    fontSize = 11.sp,
-                    color = TextSecondary,
-                    lineHeight = 15.sp
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

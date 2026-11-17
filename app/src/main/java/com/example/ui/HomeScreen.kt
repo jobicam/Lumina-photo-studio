@@ -649,10 +649,8 @@ fun HomeScreen(
             UpdateCheckerModal(
                 updateStatus = uiState.updateStatus,
                 lastCheckedMillis = uiState.lastUpdateCheckMillis,
-                currentFeedUrl = uiState.settings.updateFeedUrl,
                 lang = lang,
                 onCheckAgain = { viewModel.checkForUpdates(openDialog = true) },
-                onSaveFeedUrl = { url -> viewModel.saveUpdateFeedUrlAndCheck(url) },
                 onOpenWhatsNew = { showWhatsNew = true },
                 onDismiss = { viewModel.dismissUpdateDialog() }
             )

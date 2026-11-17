@@ -44,7 +44,7 @@ object AppStrings {
     fun skinSmoothBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "រលោងស្បែក Gaussian & រក្សាភាពលម្អិត" else "Gaussian Mask Skin Smoothing"
     fun skinSmoothBannerDesc(lang: AppLanguage) = if (isKhmer(lang)) "របាំង Gaussian ផ្តោតលើពណ៌ស្បែក ដោយរក្សារន្ធញើស និងគែមមុខឱ្យច្បាស់ធម្មជាតិ។" else "Localized Gaussian blur masks soften skin tones while preserving micro-texture and sharp edges."
     fun updateBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យរកកំណែថ្មី" else "Smart Update Checker"
-    fun updateBannerDesc(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យកំណែថ្មី ប្រវត្តិអាប់ដេត និងតំណភ្ជាប់ Release Feed ផ្ទាល់ខ្លួន។" else "Instant version verification, release highlights & optional custom JSON/GitHub feed checks."
+    fun updateBannerDesc(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យកំណែថ្មី ប្រវត្តិអាប់ដេត និងការផ្ទៀងផ្ទាត់កំណែពី GitHub ដោយផ្ទាល់។" else "Instant version verification, release highlights & built-in GitHub release checks."
     fun cropBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "កាត់តម្រឹមរូបភាព & សមាមាត្រ" else "Interactive Crop & Aspect Presets"
     fun cropBannerDesc(lang: AppLanguage) = if (isKhmer(lang)) "អូសជ្រុងកាត់តម្រឹមដោយផ្ទាល់ជាមួយសមាមាត្រ 1:1 4:5 16:9 និងក្រឡា 1/3។" else "Drag corners and pan freely on canvas with locked 1:1, 4:5, 16:9 & rule-of-thirds guides."
     fun cameraFilterBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "មើលតម្រងផ្ទាល់ពេលថតកាមេរ៉ា" else "Live Camera Filter Preview"
@@ -181,19 +181,11 @@ object AppStrings {
     fun linkCopiedToast(lang: AppLanguage) = if (isKhmer(lang)) "បានចម្លងតំណទាញយកហើយ" else "Download link copied"
     fun noDownloadLinkHint(lang: AppLanguage) = if (isKhmer(lang)) "រកឃើញកំណែថ្មី ប៉ុន្តែមិនទាន់មានតំណ APK ភ្ជាប់មកជាមួយទេ។" else "New version detected, but this release has no APK download link attached yet."
     fun autoCheckUpdates(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យកំណែថ្មីស្វ័យប្រវត្តិ" else "Auto-Check on Launch"
-    fun autoCheckUpdatesSub(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យពេលបើកកម្មវិធីប្រសិនបើមាន Feed URL" else "Check remote release feed when app starts"
-    fun updateFeedUrlLabel(lang: AppLanguage) = if (isKhmer(lang)) "តំណ Release Feed URL (ស្រេចចិត្ត)" else "Update Feed URL (Optional)"
-    fun updateFeedUrlHint(lang: AppLanguage) = if (isKhmer(lang)) "បញ្ចូល URL JSON ឬ GitHub Releases API" else "https://github.com/owner/repo"
-    fun saveUrl(lang: AppLanguage) = if (isKhmer(lang)) "រក្សាទុក URL" else "Save & Check"
-    fun clearFeedUrl(lang: AppLanguage) = if (isKhmer(lang)) "លុប URL & ប្រើការផ្ទៀងផ្ទាត់លើឧបករណ៍" else "Clear URL & Use Built-In Check"
+    fun autoCheckUpdatesSub(lang: AppLanguage) = if (isKhmer(lang)) "ពិនិត្យរកកំណែថ្មីពី GitHub ដោយស្វ័យប្រវត្តិពេលបើកកម្មវិធី" else "Check GitHub releases automatically when app starts"
+    fun updateSourceLabel(lang: AppLanguage) = if (isKhmer(lang)) "ប្រភពអាប់ដេតផ្លូវការ" else "Update Source"
+    fun customLinkDisabledNote(lang: AppLanguage) = if (isKhmer(lang)) "តំណភ្ជាប់អាប់ដេតត្រូវបានភ្ជាប់មកជាស្រេច (ការបញ្ចូលតំណផ្ទាល់ខ្លួនត្រូវបានបិទ)។" else "Built-in GitHub update link enabled (custom link input disabled)."
     fun updatedFromLabel(fromVer: String, toVer: String, lang: AppLanguage) =
         if (isKhmer(lang)) "បានអាប់ដេតពី v$fromVer ទៅ v$toVer" else "Updated from v$fromVer → v$toVer"
-    fun copyVersionManifest(lang: AppLanguage) =
-        if (isKhmer(lang)) "ចម្លង version.json (v${com.example.BuildConfig.VERSION_NAME})" else "Copy version.json (v${com.example.BuildConfig.VERSION_NAME})"
-    fun manifestCopiedToast(lang: AppLanguage) =
-        if (isKhmer(lang)) "បានចម្លង version.json ហើយ" else "Copied version.json manifest"
-    fun upgradeFeedHelper(lang: AppLanguage) =
-        if (isKhmer(lang)) "ដើម្បីឱ្យទូរសព្ទដែលប្រើកំណែចាស់ (v2.4+) ដឹងពីកំណែថ្មី សូមបង្ហោះ version.json និង APK នៅលើ GitHub Releases ឬម៉ាស៊ីនមេ HTTPS ហើយបញ្ចូល URL នៅទីនេះ។" else "To let older installs (v2.4+) pull this update, host version.json & LuminaPhoto.apk via GitHub Releases or HTTPS and set the feed URL above."
     fun privacyNote(lang: AppLanguage) = if (isKhmer(lang)) "ដំណើរការលើទូរសព្ទ ១០០%។ គ្មានរូបភាព ឬទិន្នន័យផ្ទៃមុខត្រូវបានបញ្ជូនទៅម៉ាស៊ីនមេខាងក្រៅឡើយ។ រូបថតរបស់អ្នករក្សាការសម្ងាត់យ៉ាងតឹងរ៉ឹងនៅលើទូរសព្ទរបស់អ្នក។" else "100% On-Device Processing. No images or facial metrics are uploaded to external servers. Your photos stay strictly private on your phone."
 
     // --- Status Messages ---

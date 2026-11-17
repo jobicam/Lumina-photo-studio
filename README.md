@@ -75,9 +75,6 @@ When running **Release Lumina Photo APK** manually via **Run workflow**, you can
 - **`apk_name`:** Optional APK asset filename (default `LuminaPhoto.apk`)
 - **`release_title`:** Optional GitHub Release title
 
-### 3. In-App Update Checker URL
-In the app, open **Settings → Check for Updates → Update Feed URL** and enter:
-```text
-https://github.com/jobicam/Lumina-photo-studio
-```
+### 3. Built-In In-App Update Checker
+In the app, open **Settings → Check for Updates** (or tap the **Check for Updates** button on the Home screen). The official release feed (`https://github.com/jobicam/Lumina-photo-studio`) is built directly into the app—no manual URL entry is required, and custom link input is disabled.
 *(Requires the repository to be Public with at least one published Release.)*

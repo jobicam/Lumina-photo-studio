@@ -151,7 +151,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         loadSamplePhoto(isPortrait = true, autoNavigate = false)
         calculateCacheSize()
         val s = _uiState.value.settings
-        if (s.autoCheckUpdates && s.updateFeedUrl.isNotBlank()) {
+        if (s.autoCheckUpdates) {
             checkForUpdates(openDialog = false)
         }
     }
@@ -211,7 +211,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             hapticFeedback = prefs.getBoolean("haptic_feedback", true),
             autoSaveDrafts = prefs.getBoolean("auto_save_drafts", true),
             autoCheckUpdates = prefs.getBoolean("auto_check_updates", true),
-            updateFeedUrl = prefs.getString("update_feed_url", "") ?: ""
+            updateFeedUrl = prefs.getString("update_feed_url", null)
+                ?.takeIf { it.isNotBlank() }
+                ?: AppUpdateChecker.DEFAULT_UPDATE_FEED_URL
         )
     }
 
@@ -251,7 +253,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 showUpdateDialog = if (openDialog) true else it.showUpdateDialog
             )
         }
-        val feedUrl = _uiState.value.settings.updateFeedUrl
+        val feedUrl = AppUpdateChecker.DEFAULT_UPDATE_FEED_URL
         updateCheckJob = viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 AppUpdateChecker.checkForUpdate(getApplication(), feedUrl)
@@ -267,12 +269,6 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 )
             }
         }
-    }
-
-    fun saveUpdateFeedUrlAndCheck(url: String) {
-        val normalized = AppUpdateChecker.normalizeFeedUrl(url)
-        updateSettings { it.copy(updateFeedUrl = normalized) }
-        checkForUpdates(openDialog = true)
     }
 
     fun dismissUpdateDialog() {

@@ -16,6 +16,8 @@ import java.util.concurrent.TimeUnit
 
 object AppUpdateChecker {
 
+    const val DEFAULT_UPDATE_FEED_URL = "https://github.com/jobicam/Lumina-photo-studio"
+
     private val moshi: Moshi by lazy {
         Moshi.Builder()
             .addLast(KotlinJsonAdapterFactory())
@@ -259,7 +261,7 @@ object AppUpdateChecker {
      * - When [feedUrl] is empty, verifies the installed APK version via PackageManager and reports
      *   up-to-date status along with local build verification details.
      */
-    fun checkForUpdate(context: Context, feedUrl: String): UpdateStatus {
+    fun checkForUpdate(context: Context, feedUrl: String = DEFAULT_UPDATE_FEED_URL): UpdateStatus {
         val now = System.currentTimeMillis()
         val (currentName, currentCode) = getInstalledVersion(context)
         val trimmedUrl = normalizeFeedUrl(feedUrl)
@@ -275,7 +277,7 @@ object AppUpdateChecker {
 
         if (containsTemplatePlaceholder(trimmedUrl)) {
             return UpdateStatus.Error(
-                message = "Replace <owner> and <repo> with your actual GitHub username and repository name, or clear the Feed URL to use on-device verification.",
+                message = "Invalid update feed configuration.",
                 checkedAtMillis = now
             )
         }
@@ -441,10 +443,10 @@ object AppUpdateChecker {
             when (repoAccessible) {
                 true -> "Repository $owner/$repo is public, but no GitHub Release, tag, or version.json is published yet (HTTP 404). Run the release workflow or publish a Release on GitHub."
                 false -> "Repository $owner/$repo is Private or not found (HTTP 404). Make the GitHub repository Public so the app can check releases without login."
-                null -> "No published GitHub release found for $owner/$repo (HTTP 404). Make sure the repository is Public and has a published Release, or clear the URL to verify your installed build."
+                null -> "No published GitHub release found for $owner/$repo (HTTP 404). Make sure the repository is Public and has a published Release."
             }
         } else {
-            "Update manifest not found at that URL (HTTP 404). Verify the URL or clear it to use on-device verification."
+            "Update manifest not found at the configured release feed (HTTP 404)."
         }
     }
 }
