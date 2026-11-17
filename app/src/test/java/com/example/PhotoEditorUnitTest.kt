@@ -273,7 +273,7 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.skinSmoothBannerTitle(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.8"))
+        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.9"))
         assertTrue(com.example.util.AppStrings.zoomIn(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomIn(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomOut(en).isNotBlank())
@@ -495,11 +495,11 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.statusCacheClearFailed(km).isNotBlank())
 
         val manifestJson = com.example.processing.AppUpdateChecker.buildVersionManifestJson(
-            versionCode = 14L,
-            versionName = "2.8.0"
+            versionCode = 15L,
+            versionName = "2.9.0"
         )
-        assertTrue(manifestJson.contains("Retouch Studio"))
-        assertTrue(manifestJson.contains("Background Blur"))
+        assertTrue(manifestJson.contains("transitions"))
+        assertTrue(manifestJson.contains("GitHub"))
     }
 
     @Test

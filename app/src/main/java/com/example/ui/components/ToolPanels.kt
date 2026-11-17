@@ -1,13 +1,30 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -113,7 +130,11 @@ fun FiltersPanel(
             .testTag("filters_panel")
     ) {
         // Intensity Slider (when a non-original filter is selected)
-        if (activePreset != FilterPresets.NONE) {
+        AnimatedVisibility(
+            visible = activePreset != FilterPresets.NONE,
+            enter = fadeIn(tween(180)) + expandVertically(tween(200)),
+            exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -167,17 +188,27 @@ fun FiltersPanel(
         ) {
             FilterCategory.values().forEach { cat ->
                 val isSelected = selectedCategory == cat
+                val chipBg by animateColorAsState(
+                    targetValue = if (isSelected) AccentCyan else StudioCard,
+                    animationSpec = tween(160),
+                    label = "filter_cat_bg_${cat.name}"
+                )
+                val chipText by animateColorAsState(
+                    targetValue = if (isSelected) Color.Black else TextPrimary,
+                    animationSpec = tween(160),
+                    label = "filter_cat_text_${cat.name}"
+                )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) AccentCyan else StudioCard)
-                        .clickable { selectedCategory = cat }
+                        .background(chipBg)
+                        .bounceClickable(pressedScale = 0.93f) { selectedCategory = cat }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                         .testTag("filter_cat_${cat.name.lowercase()}")
                 ) {
                     Text(
                         text = AppStrings.filterCategory(cat, lang),
-                        color = if (isSelected) Color.Black else TextPrimary,
+                        color = chipText,
                         fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                     )
@@ -212,11 +243,32 @@ private fun FilterItemCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val cardInteraction = remember { MutableInteractionSource() }
+    val pressScale by rememberPressScale(cardInteraction, pressedScale = 0.92f)
+    val selectScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.03f else 1.0f,
+        animationSpec = StudioMotion.PressSpring,
+        label = "filter_card_scale"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isSelected) AccentCyan else StudioBorder,
+        animationSpec = tween(180),
+        label = "filter_card_border"
+    )
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .width(72.dp)
-            .clickable(onClick = onClick)
+            .graphicsLayer {
+                val combined = selectScale * pressScale
+                scaleX = combined
+                scaleY = combined
+            }
+            .clickable(
+                interactionSource = cardInteraction,
+                indication = LocalIndication.current,
+                onClick = onClick
+            )
             .testTag("filter_preset_${preset.id}")
     ) {
         Box(
@@ -239,7 +291,7 @@ private fun FilterItemCard(
                 )
                 .border(
                     width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) AccentCyan else StudioBorder,
+                    color = borderColor,
                     shape = RoundedCornerShape(10.dp)
                 ),
             contentAlignment = Alignment.Center
@@ -250,11 +302,16 @@ private fun FilterItemCard(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
-            if (isSelected) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isSelected,
+                enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.6f),
+                exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.6f),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+            ) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
                         .size(16.dp)
                         .background(AccentCyan, CircleShape),
                     contentAlignment = Alignment.Center
@@ -319,6 +376,16 @@ fun AdjustPanel(
             ) {
                 AdjustCategory.values().forEach { cat ->
                     val isSelected = activeCategory == cat
+                    val catBg by animateColorAsState(
+                        targetValue = if (isSelected) AccentCyan else StudioCard,
+                        animationSpec = tween(160),
+                        label = "adjust_cat_bg_${cat.name}"
+                    )
+                    val catText by animateColorAsState(
+                        targetValue = if (isSelected) Color.Black else TextPrimary,
+                        animationSpec = tween(160),
+                        label = "adjust_cat_text_${cat.name}"
+                    )
                     val catLabel = when (cat) {
                         AdjustCategory.LIGHT -> AppStrings.catLight(lang)
                         AdjustCategory.COLOR -> AppStrings.catColor(lang)
@@ -328,14 +395,14 @@ fun AdjustPanel(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) AccentCyan else StudioCard)
-                            .clickable { onSelectCategory(cat) }
+                            .background(catBg)
+                            .bounceClickable(pressedScale = 0.93f) { onSelectCategory(cat) }
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                             .testTag("adjust_cat_${cat.name.lowercase()}")
                     ) {
                         Text(
                             text = catLabel,
-                            color = if (isSelected) Color.Black else TextPrimary,
+                            color = catText,
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1,
@@ -356,7 +423,7 @@ fun AdjustPanel(
                         .clip(RoundedCornerShape(14.dp))
                         .background(AccentCyan.copy(alpha = 0.16f))
                         .border(1.dp, AccentCyan.copy(alpha = 0.55f), RoundedCornerShape(14.dp))
-                        .clickable(onClick = onAutoEnhance)
+                        .bounceClickable(pressedScale = 0.93f, onClick = onAutoEnhance)
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                         .testTag("auto_enhance_button")
                 ) {
@@ -379,9 +446,13 @@ fun AdjustPanel(
                     }
                 }
 
+                val resetInteraction = remember { MutableInteractionSource() }
                 IconButton(
                     onClick = onReset,
-                    modifier = Modifier.testTag("adjust_reset_button")
+                    interactionSource = resetInteraction,
+                    modifier = Modifier
+                        .pressBounce(resetInteraction, pressedScale = 0.88f)
+                        .testTag("adjust_reset_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
@@ -395,13 +466,27 @@ fun AdjustPanel(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Sliders based on category with vertical scrolling
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-        ) {
-            when (activeCategory) {
+        // Sliders based on category with smooth category transition & vertical scrolling
+        AnimatedContent(
+            targetState = activeCategory,
+            transitionSpec = {
+                val toRight = targetState.ordinal > initialState.ordinal
+                val slideIn = slideInHorizontally(
+                    animationSpec = StudioMotion.SlideSpring
+                ) { w -> if (toRight) w / 10 else -w / 10 }
+                val slideOut = slideOutHorizontally(
+                    animationSpec = tween(130)
+                ) { w -> if (toRight) -w / 12 else w / 12 }
+                (fadeIn(tween(180)) + slideIn) togetherWith (fadeOut(tween(130)) + slideOut)
+            },
+            label = "adjust_category_content"
+        ) { category ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                when (category) {
                 AdjustCategory.LIGHT -> {
                     AdjustSliderItem(
                         label = AppStrings.sliderExposure(lang),
@@ -526,100 +611,116 @@ fun AdjustPanel(
                         onEditFinished = onEditFinished,
                         onValueChange = { v -> onAdjustmentsChanged { it.copy(backgroundBlur = v) } }
                     )
-                    if (adjustments.backgroundBlur > 0f) {
-                        AdjustSliderItem(
-                            label = AppStrings.sliderFocusSize(lang),
-                            testTagKey = "blur_focus_size",
-                            value = (adjustments.blurFocusRadius * 100f).coerceIn(15f, 70f),
-                            range = 15f..70f,
-                            defaultValue = 32f,
-                            hapticFeedback = hapticFeedback,
-                            onEditFinished = onEditFinished,
-                            onValueChange = { v ->
-                                onAdjustmentsChanged {
-                                    it.copy(blurFocusRadius = (v / 100f).coerceIn(0.15f, 0.70f))
-                                }
-                            }
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val protectActive = adjustments.blurProtectSubject
-                            Box(
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(if (protectActive) AccentCyan.copy(alpha = 0.2f) else StudioCard)
-                                    .border(
-                                        1.dp,
-                                        if (protectActive) AccentCyan else StudioBorder,
-                                        RoundedCornerShape(14.dp)
-                                    )
-                                    .clickable {
-                                        onAdjustmentsChanged { it.copy(blurProtectSubject = !it.blurProtectSubject) }
-                                        onEditFinished()
+                    AnimatedVisibility(
+                        visible = adjustments.backgroundBlur > 0f,
+                        enter = fadeIn(tween(180)) + expandVertically(tween(200)),
+                        exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            AdjustSliderItem(
+                                label = AppStrings.sliderFocusSize(lang),
+                                testTagKey = "blur_focus_size",
+                                value = (adjustments.blurFocusRadius * 100f).coerceIn(15f, 70f),
+                                range = 15f..70f,
+                                defaultValue = 32f,
+                                hapticFeedback = hapticFeedback,
+                                onEditFinished = onEditFinished,
+                                onValueChange = { v ->
+                                    onAdjustmentsChanged {
+                                        it.copy(blurFocusRadius = (v / 100f).coerceIn(0.15f, 0.70f))
                                     }
-                                    .padding(horizontal = 12.dp, vertical = 7.dp)
-                                    .testTag("blur_protect_subject_toggle")
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Face,
-                                        contentDescription = AppStrings.protectSubjectLabel(lang),
-                                        tint = if (protectActive) AccentCyan else TextSecondary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = AppStrings.protectSubjectLabel(lang),
-                                        color = if (protectActive) AccentCyan else TextSecondary,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (protectActive) FontWeight.Bold else FontWeight.Normal,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
                                 }
-                            }
-
-                            Box(
+                            )
+                            Row(
                                 modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(StudioSurfaceVariant)
-                                    .border(1.dp, StudioBorder, RoundedCornerShape(14.dp))
-                                    .clickable {
-                                        onAdjustmentsChanged {
-                                            it.copy(
-                                                blurFocusX = 0.50f,
-                                                blurFocusY = 0.42f,
-                                                blurFocusRadius = 0.32f
-                                            )
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val protectActive = adjustments.blurProtectSubject
+                                val protectBg by animateColorAsState(
+                                    targetValue = if (protectActive) AccentCyan.copy(alpha = 0.2f) else StudioCard,
+                                    animationSpec = tween(160),
+                                    label = "protect_subject_bg"
+                                )
+                                val protectBorder by animateColorAsState(
+                                    targetValue = if (protectActive) AccentCyan else StudioBorder,
+                                    animationSpec = tween(160),
+                                    label = "protect_subject_border"
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .minimumInteractiveComponentSize()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(protectBg)
+                                        .border(
+                                            1.dp,
+                                            protectBorder,
+                                            RoundedCornerShape(14.dp)
+                                        )
+                                        .bounceClickable(pressedScale = 0.94f) {
+                                            onAdjustmentsChanged { it.copy(blurProtectSubject = !it.blurProtectSubject) }
+                                            onEditFinished()
                                         }
-                                        onEditFinished()
+                                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                                        .testTag("blur_protect_subject_toggle")
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Face,
+                                            contentDescription = AppStrings.protectSubjectLabel(lang),
+                                            tint = if (protectActive) AccentCyan else TextSecondary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = AppStrings.protectSubjectLabel(lang),
+                                            color = if (protectActive) AccentCyan else TextSecondary,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (protectActive) FontWeight.Bold else FontWeight.Normal,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
                                     }
-                                    .padding(horizontal = 12.dp, vertical = 7.dp)
-                                    .testTag("blur_reset_focus_button")
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.CenterFocusStrong,
-                                        contentDescription = AppStrings.blurFocusHint(lang),
-                                        tint = TextPrimary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(
-                                        text = AppStrings.blurFocusHint(lang),
-                                        color = TextPrimary,
-                                        fontSize = 11.sp,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .minimumInteractiveComponentSize()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(StudioSurfaceVariant)
+                                        .border(1.dp, StudioBorder, RoundedCornerShape(14.dp))
+                                        .bounceClickable(pressedScale = 0.94f) {
+                                            onAdjustmentsChanged {
+                                                it.copy(
+                                                    blurFocusX = 0.50f,
+                                                    blurFocusY = 0.42f,
+                                                    blurFocusRadius = 0.32f
+                                                )
+                                            }
+                                            onEditFinished()
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                                        .testTag("blur_reset_focus_button")
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.CenterFocusStrong,
+                                            contentDescription = AppStrings.blurFocusHint(lang),
+                                            tint = TextPrimary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = AppStrings.blurFocusHint(lang),
+                                            color = TextPrimary,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -661,6 +762,7 @@ fun AdjustPanel(
                         onValueChange = { v -> onAdjustmentsChanged { it.copy(fade = v) } }
                     )
                 }
+            }
             }
         }
     }
@@ -767,17 +869,27 @@ fun CurvesPanel(
                         CurveChannel.GREEN -> Color(0xFF69F0AE)
                         CurveChannel.BLUE -> Color(0xFF448AFF)
                     }
+                    val tabBg by animateColorAsState(
+                        targetValue = if (isSelected) StudioSurfaceVariant else StudioCard,
+                        animationSpec = tween(160),
+                        label = "curve_bg_${ch.name}"
+                    )
+                    val tabBorder by animateColorAsState(
+                        targetValue = if (isSelected) dotColor else StudioBorder,
+                        animationSpec = tween(160),
+                        label = "curve_border_${ch.name}"
+                    )
 
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) StudioSurfaceVariant else StudioCard)
+                            .background(tabBg)
                             .border(
                                 width = if (isSelected) 1.5.dp else 1.dp,
-                                color = if (isSelected) dotColor else StudioBorder,
+                                color = tabBorder,
                                 shape = RoundedCornerShape(12.dp)
                             )
-                            .clickable { onSelectChannel(ch) }
+                            .bounceClickable(pressedScale = 0.93f) { onSelectChannel(ch) }
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                             .testTag("curve_channel_${ch.name.lowercase()}")
                     ) {
@@ -799,9 +911,13 @@ fun CurvesPanel(
                 }
             }
 
+            val curvesResetInteraction = remember { MutableInteractionSource() }
             IconButton(
                 onClick = onResetChannel,
-                modifier = Modifier.testTag("curves_reset_button")
+                interactionSource = curvesResetInteraction,
+                modifier = Modifier
+                    .pressBounce(curvesResetInteraction, pressedScale = 0.88f)
+                    .testTag("curves_reset_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
@@ -867,11 +983,31 @@ fun HslPanel(
             HslColorChannel.values().forEach { ch ->
                 val isSelected = hsl.activeChannel == ch
                 val hasAdjustment = !hsl.getAdjustment(ch).isDefault
+                val swatchInteraction = remember { MutableInteractionSource() }
+                val pressScale by rememberPressScale(swatchInteraction, pressedScale = 0.88f)
+                val selectScale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.10f else 1.0f,
+                    animationSpec = StudioMotion.PressSpring,
+                    label = "hsl_swatch_scale_${ch.name}"
+                )
+                val swatchBorder by animateColorAsState(
+                    targetValue = if (isSelected) Color.White else StudioBorder,
+                    animationSpec = tween(160),
+                    label = "hsl_swatch_border_${ch.name}"
+                )
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .clickable { onSelectChannel(ch) }
+                        .graphicsLayer {
+                            val s = selectScale * pressScale
+                            scaleX = s
+                            scaleY = s
+                        }
+                        .clickable(
+                            interactionSource = swatchInteraction,
+                            indication = LocalIndication.current
+                        ) { onSelectChannel(ch) }
                         .padding(vertical = 4.dp)
                         .testTag("hsl_color_${ch.name.lowercase()}")
                 ) {
@@ -881,7 +1017,7 @@ fun HslPanel(
                             .background(ch.previewColor, CircleShape)
                             .border(
                                 width = if (isSelected) 3.dp else 1.dp,
-                                color = if (isSelected) Color.White else StudioBorder,
+                                color = swatchBorder,
                                 shape = CircleShape
                             ),
                         contentAlignment = Alignment.Center
@@ -904,9 +1040,13 @@ fun HslPanel(
                 }
             }
 
+            val hslResetInteraction = remember { MutableInteractionSource() }
             IconButton(
                 onClick = onResetChannel,
-                modifier = Modifier.testTag("hsl_reset_button")
+                interactionSource = hslResetInteraction,
+                modifier = Modifier
+                    .pressBounce(hslResetInteraction, pressedScale = 0.88f)
+                    .testTag("hsl_reset_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
@@ -985,33 +1125,45 @@ fun CropPanel(
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
+            val rotateInteraction = remember { MutableInteractionSource() }
             Button(
                 onClick = onRotate,
+                interactionSource = rotateInteraction,
                 colors = ButtonDefaults.buttonColors(containerColor = StudioCard),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.testTag("rotate_button")
+                modifier = Modifier
+                    .pressBounce(rotateInteraction, pressedScale = 0.93f)
+                    .testTag("rotate_button")
             ) {
                 Icon(imageVector = Icons.Default.RotateRight, contentDescription = AppStrings.rotate90(lang), tint = AccentCyan)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(AppStrings.rotate90(lang), color = TextPrimary, fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
 
+            val flipHInteraction = remember { MutableInteractionSource() }
             Button(
                 onClick = onFlipH,
+                interactionSource = flipHInteraction,
                 colors = ButtonDefaults.buttonColors(containerColor = StudioCard),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.testTag("flip_h_button")
+                modifier = Modifier
+                    .pressBounce(flipHInteraction, pressedScale = 0.93f)
+                    .testTag("flip_h_button")
             ) {
                 Icon(imageVector = Icons.Default.Flip, contentDescription = AppStrings.flipH(lang), tint = AccentCyan)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(AppStrings.flipH(lang), color = TextPrimary, fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
 
+            val flipVInteraction = remember { MutableInteractionSource() }
             Button(
                 onClick = onFlipV,
+                interactionSource = flipVInteraction,
                 colors = ButtonDefaults.buttonColors(containerColor = StudioCard),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.testTag("flip_v_button")
+                modifier = Modifier
+                    .pressBounce(flipVInteraction, pressedScale = 0.93f)
+                    .testTag("flip_v_button")
             ) {
                 Icon(imageVector = Icons.Default.Flip, contentDescription = AppStrings.flipV(lang), tint = AccentCyan)
                 Spacer(modifier = Modifier.width(6.dp))
@@ -1039,13 +1191,17 @@ fun CropPanel(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (canResetCrop) {
+                AnimatedVisibility(
+                    visible = canResetCrop,
+                    enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.85f),
+                    exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.85f)
+                ) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
                             .background(StudioCard)
                             .border(1.dp, StudioBorder, RoundedCornerShape(12.dp))
-                            .clickable(onClick = onResetCrop)
+                            .bounceClickable(pressedScale = 0.92f, onClick = onResetCrop)
                             .padding(horizontal = 10.dp, vertical = 5.dp)
                             .testTag("reset_crop_button")
                     ) {
@@ -1060,16 +1216,26 @@ fun CropPanel(
                     }
                 }
 
+                val applyBg by animateColorAsState(
+                    targetValue = if (canApplyCrop) AccentCyan else StudioCard,
+                    animationSpec = tween(180),
+                    label = "apply_crop_bg"
+                )
+                val applyBorder by animateColorAsState(
+                    targetValue = if (canApplyCrop) AccentCyan else StudioBorder,
+                    animationSpec = tween(180),
+                    label = "apply_crop_border"
+                )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (canApplyCrop) AccentCyan else StudioCard)
+                        .background(applyBg)
                         .border(
                             width = 1.dp,
-                            color = if (canApplyCrop) AccentCyan else StudioBorder,
+                            color = applyBorder,
                             shape = RoundedCornerShape(12.dp)
                         )
-                        .clickable(enabled = canApplyCrop, onClick = onApplyCrop)
+                        .bounceClickable(enabled = canApplyCrop, pressedScale = 0.93f, onClick = onApplyCrop)
                         .padding(horizontal = 12.dp, vertical = 5.dp)
                         .testTag("apply_crop_button")
                 ) {
@@ -1106,16 +1272,26 @@ fun CropPanel(
         ) {
             CropAspectRatio.values().forEach { r ->
                 val isSelected = selectedRatio == r
+                val ratioBg by animateColorAsState(
+                    targetValue = if (isSelected) AccentCyan else StudioCard,
+                    animationSpec = tween(160),
+                    label = "ratio_bg_${r.name}"
+                )
+                val ratioBorder by animateColorAsState(
+                    targetValue = if (isSelected) AccentCyan else StudioBorder,
+                    animationSpec = tween(160),
+                    label = "ratio_border_${r.name}"
+                )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) AccentCyan else StudioCard)
+                        .background(ratioBg)
                         .border(
                             width = if (isSelected) 1.5.dp else 1.dp,
-                            color = if (isSelected) AccentCyan else StudioBorder,
+                            color = ratioBorder,
                             shape = RoundedCornerShape(12.dp)
                         )
-                        .clickable { onSelectRatio(r) }
+                        .bounceClickable(pressedScale = 0.93f) { onSelectRatio(r) }
                         .padding(horizontal = 14.dp, vertical = 8.dp)
                         .testTag("crop_ratio_${r.name.lowercase()}")
                 ) {
@@ -1152,6 +1328,16 @@ fun CropPanel(
         ) {
             FrameStyle.values().forEach { frame ->
                 val isSelected = activeFrame == frame
+                val frameChipBg by animateColorAsState(
+                    targetValue = if (isSelected) AccentCyan.copy(alpha = 0.16f) else StudioCard,
+                    animationSpec = tween(160),
+                    label = "frame_bg_${frame.name}"
+                )
+                val frameChipBorder by animateColorAsState(
+                    targetValue = if (isSelected) AccentCyan else StudioBorder,
+                    animationSpec = tween(160),
+                    label = "frame_border_${frame.name}"
+                )
                 val frameBg = when (frame) {
                     FrameStyle.NONE -> StudioSurfaceVariant
                     FrameStyle.CLASSIC_WHITE -> Color(0xFFF6F6F4)
@@ -1170,13 +1356,13 @@ fun CropPanel(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) AccentCyan.copy(alpha = 0.16f) else StudioCard)
+                        .background(frameChipBg)
                         .border(
                             width = if (isSelected) 1.5.dp else 1.dp,
-                            color = if (isSelected) AccentCyan else StudioBorder,
+                            color = frameChipBorder,
                             shape = RoundedCornerShape(12.dp)
                         )
-                        .clickable { onSelectFrame(frame) }
+                        .bounceClickable(pressedScale = 0.94f) { onSelectFrame(frame) }
                         .padding(horizontal = 10.dp, vertical = 7.dp)
                         .testTag("frame_style_${frame.name.lowercase()}")
                 ) {

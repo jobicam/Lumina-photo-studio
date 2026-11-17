@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v2.8.0)'
+        description: 'Release tag (e.g. v2.9.0)'
         required: true
-        default: 'v2.8.0'
+        default: 'v2.9.0'
       apk_name:
         description: 'APK file name (e.g. LuminaPhoto.apk)'
         required: false
@@ -124,7 +124,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '9.3.1'
+          gradle-version: '9.9.1'
 
       - name: Run unit tests & build APK
         run: |

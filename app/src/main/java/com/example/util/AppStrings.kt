@@ -38,7 +38,7 @@ object AppStrings {
     fun portraitBadge(lang: AppLanguage) = if (isKhmer(lang)) "មុខ & ស្បែក" else "Face & Skin"
     fun mountainSunset(lang: AppLanguage) = if (isKhmer(lang)) "ថ្ងៃលិចលើភ្នំ" else "Mountain Sunset"
     fun sunsetBadge(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ & តម្រង" else "Color & Filter"
-    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.8" else "STUDIO CAPABILITIES v2.8"
+    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.9" else "STUDIO CAPABILITIES v2.9"
 
     // Feature Banners
     fun skinSmoothBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "រលោងស្បែក Gaussian & រក្សាភាពលម្អិត" else "Gaussian Mask Skin Smoothing"

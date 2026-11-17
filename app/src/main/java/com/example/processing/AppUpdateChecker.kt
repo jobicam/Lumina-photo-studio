@@ -176,7 +176,7 @@ object AppUpdateChecker {
     fun buildVersionManifestJson(
         versionCode: Long = BuildConfig.VERSION_CODE.toLong(),
         versionName: String = BuildConfig.VERSION_NAME,
-        releaseNotes: String = "Redesigned Retouch Studio with Restore Brush and directional Sculpt & Warp, plus Portrait Background Blur (Bokeh) and Photo Zoom (1.0x-6.0x).",
+        releaseNotes: String = "Smooth layout transitions with directional screen slides, animated editor drawers, spring button press feedback, and built-in GitHub release update checking.",
         downloadUrl: String = ""
     ): String {
         val adapter = moshi.adapter<Map<String, Any>>(mapType).indent("  ")

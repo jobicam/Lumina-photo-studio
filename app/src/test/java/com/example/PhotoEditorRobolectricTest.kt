@@ -313,8 +313,8 @@ class PhotoEditorRobolectricTest {
         assertEquals("https://example.com/version.json", state.settings.updateFeedUrl)
         assertEquals("2.4.0", state.upgradedFromVersion)
         assertEquals(BuildConfig.VERSION_CODE, settingsPrefs.getInt("last_migrated_version_code", 0))
-        assertEquals("2.8.0", BuildConfig.VERSION_NAME)
-        assertEquals(14, BuildConfig.VERSION_CODE)
+        assertEquals("2.9.0", BuildConfig.VERSION_NAME)
+        assertEquals(15, BuildConfig.VERSION_CODE)
     }
 
     @Test

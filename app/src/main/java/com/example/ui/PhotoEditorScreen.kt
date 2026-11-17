@@ -7,15 +7,28 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -103,6 +116,9 @@ import com.example.ui.components.PhotoPickerModal
 import com.example.ui.components.RetouchPanel
 import com.example.ui.components.SaveOptionsModal
 import com.example.ui.components.SaveSuccessModal
+import com.example.ui.components.StudioMotion
+import com.example.ui.components.bounceClickable
+import com.example.ui.components.pressBounce
 import com.example.util.AppStrings
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
@@ -240,14 +256,19 @@ fun PhotoEditorScreen(
                 )
 
                 // Live Histogram HUD (Top Left, offset below BEFORE label if Split View is active)
+                val hudTopPadding by animateDpAsState(
+                    targetValue = if (uiState.isSplitView) 48.dp else 12.dp,
+                    animationSpec = StudioMotion.PanelHeightSpring,
+                    label = "histogram_hud_top_padding"
+                )
                 androidx.compose.animation.AnimatedVisibility(
                     visible = uiState.showHistogramOverlay && uiState.histogram != null,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
+                    exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.92f),
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(
-                            top = if (uiState.isSplitView) 48.dp else 12.dp,
+                            top = hudTopPadding,
                             start = 12.dp
                         )
                 ) {
@@ -257,14 +278,19 @@ fun PhotoEditorScreen(
                 }
 
                 // Floating Canvas Save Button (Top Right, hidden during Split View to keep AFTER badge clear)
-                if (!uiState.isSplitView) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !uiState.isSplitView,
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.90f),
+                    exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.90f),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                ) {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(12.dp)
                             .clip(RoundedCornerShape(20.dp))
                             .background(AccentCyan)
-                            .clickable(onClick = requestSaveAction)
+                            .bounceClickable(pressedScale = 0.93f, onClick = requestSaveAction)
                             .padding(horizontal = 14.dp, vertical = 7.dp)
                             .testTag("canvas_floating_save_button"),
                         contentAlignment = Alignment.Center
@@ -290,22 +316,34 @@ fun PhotoEditorScreen(
                 }
 
                 // Live Histogram HUD Toggle Pill (Bottom Left, hidden in Crop mode to keep bottom handles clear)
-                if (uiState.activeTab != EditorTab.CROP) {
+                val histPillBg by animateColorAsState(
+                    targetValue = if (uiState.showHistogramOverlay) AccentCyan.copy(alpha = 0.92f) else StudioSurface.copy(alpha = 0.85f),
+                    animationSpec = tween(180),
+                    label = "histogram_pill_bg"
+                )
+                val histPillBorder by animateColorAsState(
+                    targetValue = if (uiState.showHistogramOverlay) AccentCyan else StudioBorder,
+                    animationSpec = tween(180),
+                    label = "histogram_pill_border"
+                )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = uiState.activeTab != EditorTab.CROP,
+                    enter = fadeIn(tween(180)) + slideInVertically { it / 3 },
+                    exit = fadeOut(tween(140)) + slideOutVertically { it / 3 },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(16.dp)
+                ) {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp)
                             .clip(RoundedCornerShape(24.dp))
-                            .background(
-                                if (uiState.showHistogramOverlay) AccentCyan.copy(alpha = 0.92f)
-                                else StudioSurface.copy(alpha = 0.85f)
-                            )
+                            .background(histPillBg)
                             .border(
                                 width = 1.dp,
-                                color = if (uiState.showHistogramOverlay) AccentCyan else StudioBorder,
+                                color = histPillBorder,
                                 shape = RoundedCornerShape(24.dp)
                             )
-                            .clickable { viewModel.toggleHistogramOverlay() }
+                            .bounceClickable(pressedScale = 0.94f) { viewModel.toggleHistogramOverlay() }
                             .padding(horizontal = 12.dp, vertical = 8.dp)
                             .testTag("toggle_histogram_hud_button"),
                         contentAlignment = Alignment.Center
@@ -331,14 +369,33 @@ fun PhotoEditorScreen(
                 }
 
                 // Hold to Compare floating button (when not in split view or crop mode)
-                if (!uiState.isSplitView && uiState.activeTab != EditorTab.CROP) {
+                val compareScale by animateFloatAsState(
+                    targetValue = if (uiState.isComparing) 0.93f else 1f,
+                    animationSpec = StudioMotion.PressSpring,
+                    label = "compare_pill_scale"
+                )
+                val compareBorder by animateColorAsState(
+                    targetValue = if (uiState.isComparing) AccentAmber else StudioBorder,
+                    animationSpec = tween(150),
+                    label = "compare_pill_border"
+                )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !uiState.isSplitView && uiState.activeTab != EditorTab.CROP,
+                    enter = fadeIn(tween(180)) + slideInVertically { it / 3 },
+                    exit = fadeOut(tween(140)) + slideOutVertically { it / 3 },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp)
+                ) {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(16.dp)
+                            .graphicsLayer {
+                                scaleX = compareScale
+                                scaleY = compareScale
+                            }
                             .clip(RoundedCornerShape(24.dp))
                             .background(StudioSurface.copy(alpha = 0.85f))
-                            .border(1.dp, StudioBorder, RoundedCornerShape(24.dp))
+                            .border(1.dp, compareBorder, RoundedCornerShape(24.dp))
                             .pointerInput(Unit) {
                                 detectTapGestures(
                                     onPress = {
@@ -356,13 +413,13 @@ fun PhotoEditorScreen(
                             Icon(
                                 imageVector = Icons.Default.Compare,
                                 contentDescription = AppStrings.holdOriginal(lang),
-                                tint = AccentCyan,
+                                tint = if (uiState.isComparing) AccentAmber else AccentCyan,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = AppStrings.holdOriginal(lang),
-                                color = TextPrimary,
+                                color = if (uiState.isComparing) AccentAmber else TextPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
@@ -373,10 +430,14 @@ fun PhotoEditorScreen(
                 }
 
                 // Processing Indicator
-                if (uiState.isProcessing) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = uiState.isProcessing,
+                    enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.85f),
+                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.85f),
+                    modifier = Modifier.align(Alignment.Center)
+                ) {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.Center)
                             .size(60.dp)
                             .background(StudioSurface.copy(alpha = 0.85f), RoundedCornerShape(16.dp)),
                         contentAlignment = Alignment.Center
@@ -416,17 +477,30 @@ fun PhotoEditorScreen(
                             EditorTab.HSL -> 215.dp
                             EditorTab.FILTERS -> 185.dp
                         },
+                        animationSpec = StudioMotion.PanelHeightSpring,
                         label = "tool_drawer_height"
                     )
 
-                    // Tool Panel Content
-                    Box(
+                    // Tool Panel Content with smooth directional slide & fade
+                    AnimatedContent(
+                        targetState = uiState.activeTab,
+                        transitionSpec = {
+                            val toRight = targetState.ordinal > initialState.ordinal
+                            val slideIn = slideInHorizontally(
+                                animationSpec = StudioMotion.SlideSpring
+                            ) { width -> if (toRight) width / 8 else -width / 8 }
+                            val slideOut = slideOutHorizontally(
+                                animationSpec = tween(140)
+                            ) { width -> if (toRight) -width / 10 else width / 10 }
+                            (fadeIn(tween(200)) + slideIn) togetherWith (fadeOut(tween(140)) + slideOut)
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(drawerHeight)
-                    ) {
+                            .height(drawerHeight),
+                        label = "editor_tab_content"
+                    ) { tab ->
                         val hapticsEnabled = uiState.settings.hapticFeedback
-                        when (uiState.activeTab) {
+                        when (tab) {
                             EditorTab.FILTERS -> FiltersPanel(
                                 activePreset = uiState.activePreset,
                                 filterIntensity = uiState.filterIntensity,
@@ -513,6 +587,17 @@ fun PhotoEditorScreen(
                     ) {
                         EditorTab.values().forEach { tab ->
                             val isSelected = uiState.activeTab == tab
+                            val tabInteraction = remember { MutableInteractionSource() }
+                            val iconScale by animateFloatAsState(
+                                targetValue = if (isSelected) 1.14f else 1f,
+                                animationSpec = StudioMotion.PressSpring,
+                                label = "tab_icon_scale_${tab.name}"
+                            )
+                            val tabTint by animateColorAsState(
+                                targetValue = if (isSelected) AccentCyan else TextSecondary,
+                                animationSpec = tween(180),
+                                label = "tab_tint_${tab.name}"
+                            )
                             val icon = when (tab) {
                                 EditorTab.FILTERS -> Icons.Default.Filter
                                 EditorTab.RETOUCH -> Icons.Default.AutoFixHigh
@@ -533,23 +618,31 @@ fun PhotoEditorScreen(
                             Tab(
                                 selected = isSelected,
                                 onClick = { viewModel.selectTab(tab) },
+                                interactionSource = tabInteraction,
                                 text = {
                                     Text(
                                         text = tabLabel,
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) AccentCyan else TextSecondary
+                                        color = tabTint
                                     )
                                 },
                                 icon = {
                                     Icon(
                                         imageVector = icon,
                                         contentDescription = tabLabel,
-                                        tint = if (isSelected) AccentCyan else TextSecondary,
-                                        modifier = Modifier.size(18.dp)
+                                        tint = tabTint,
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .graphicsLayer {
+                                                scaleX = iconScale
+                                                scaleY = iconScale
+                                            }
                                     )
                                 },
-                                modifier = Modifier.testTag("tab_${tab.name.lowercase()}")
+                                modifier = Modifier
+                                    .pressBounce(tabInteraction, pressedScale = 0.92f)
+                                    .testTag("tab_${tab.name.lowercase()}")
                             )
                         }
                     }
@@ -680,11 +773,14 @@ private fun TopEditorBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
+            val backInteraction = remember { MutableInteractionSource() }
             IconButton(
                 onClick = onNavigateHome,
+                interactionSource = backInteraction,
                 modifier = Modifier
                     .width(40.dp)
                     .height(48.dp)
+                    .pressBounce(backInteraction, pressedScale = 0.88f)
                     .testTag("editor_back_to_home")
             ) {
                 Icon(
@@ -695,49 +791,73 @@ private fun TopEditorBar(
                 )
             }
 
+            val undoInteraction = remember { MutableInteractionSource() }
+            val undoTint by animateColorAsState(
+                targetValue = if (canUndo) TextPrimary else TextDisabled,
+                animationSpec = tween(160),
+                label = "undo_tint"
+            )
             IconButton(
                 onClick = onUndo,
                 enabled = canUndo,
+                interactionSource = undoInteraction,
                 modifier = Modifier
                     .width(38.dp)
                     .height(48.dp)
+                    .pressBounce(undoInteraction, pressedScale = 0.88f, enabled = canUndo)
                     .testTag("undo_button")
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Undo,
                     contentDescription = AppStrings.undo(lang),
-                    tint = if (canUndo) TextPrimary else TextDisabled,
+                    tint = undoTint,
                     modifier = Modifier.size(19.dp)
                 )
             }
 
+            val redoInteraction = remember { MutableInteractionSource() }
+            val redoTint by animateColorAsState(
+                targetValue = if (canRedo) TextPrimary else TextDisabled,
+                animationSpec = tween(160),
+                label = "redo_tint"
+            )
             IconButton(
                 onClick = onRedo,
                 enabled = canRedo,
+                interactionSource = redoInteraction,
                 modifier = Modifier
                     .width(38.dp)
                     .height(48.dp)
+                    .pressBounce(redoInteraction, pressedScale = 0.88f, enabled = canRedo)
                     .testTag("redo_button")
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Redo,
                     contentDescription = AppStrings.redo(lang),
-                    tint = if (canRedo) TextPrimary else TextDisabled,
+                    tint = redoTint,
                     modifier = Modifier.size(19.dp)
                 )
             }
 
+            val splitInteraction = remember { MutableInteractionSource() }
+            val splitTint by animateColorAsState(
+                targetValue = if (isSplitView) AccentCyan else TextSecondary,
+                animationSpec = tween(180),
+                label = "split_tint"
+            )
             IconButton(
                 onClick = onToggleSplit,
+                interactionSource = splitInteraction,
                 modifier = Modifier
                     .width(38.dp)
                     .height(48.dp)
+                    .pressBounce(splitInteraction, pressedScale = 0.88f)
                     .testTag("toggle_split_view_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.VerticalSplit,
                     contentDescription = AppStrings.splitView(lang),
-                    tint = if (isSplitView) AccentCyan else TextSecondary,
+                    tint = splitTint,
                     modifier = Modifier.size(19.dp)
                 )
             }
@@ -748,11 +868,14 @@ private fun TopEditorBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            val shareInteraction = remember { MutableInteractionSource() }
             IconButton(
                 onClick = onShare,
+                interactionSource = shareInteraction,
                 modifier = Modifier
                     .width(38.dp)
                     .height(48.dp)
+                    .pressBounce(shareInteraction, pressedScale = 0.88f)
                     .testTag("share_button")
             ) {
                 Icon(
@@ -765,11 +888,14 @@ private fun TopEditorBar(
 
             // More Menu Dropdown
             Box {
+                val moreInteraction = remember { MutableInteractionSource() }
                 IconButton(
                     onClick = { showMenu = true },
+                    interactionSource = moreInteraction,
                     modifier = Modifier
                         .width(38.dp)
                         .height(48.dp)
+                        .pressBounce(moreInteraction, pressedScale = 0.88f)
                         .testTag("editor_more_options_button")
                 ) {
                     Icon(
@@ -867,8 +993,10 @@ private fun TopEditorBar(
             }
 
             // PRIMARY HERO SAVE BUTTON - Always visible on the far right
+            val saveInteraction = remember { MutableInteractionSource() }
             Button(
                 onClick = onSave,
+                interactionSource = saveInteraction,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = AccentCyan,
                     contentColor = Color.Black
@@ -877,6 +1005,7 @@ private fun TopEditorBar(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                 modifier = Modifier
                     .height(36.dp)
+                    .pressBounce(saveInteraction, pressedScale = 0.93f)
                     .testTag("save_photo_button")
             ) {
                 Icon(

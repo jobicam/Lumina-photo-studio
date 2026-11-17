@@ -6,7 +6,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.HomeScreen
 import com.example.ui.PhotoEditorScreen
 import com.example.ui.SettingsScreen
+import com.example.ui.components.StudioMotion
 import com.example.ui.theme.LuminaTheme
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.PhotoEditorViewModel
@@ -39,10 +46,20 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                Crossfade(
+                AnimatedContent(
                     targetState = uiState.currentScreen,
+                    transitionSpec = {
+                        val forward = targetState != AppScreen.HOME
+                        val slideIn = slideInHorizontally(
+                            animationSpec = StudioMotion.SlideSpring
+                        ) { fullWidth -> if (forward) fullWidth / 10 else -fullWidth / 10 }
+                        val slideOut = slideOutHorizontally(
+                            animationSpec = tween(StudioMotion.FADE_OUT_MS)
+                        ) { fullWidth -> if (forward) -fullWidth / 12 else fullWidth / 12 }
+                        (fadeIn(tween(220)) + slideIn) togetherWith (fadeOut(tween(StudioMotion.FADE_OUT_MS)) + slideOut)
+                    },
                     modifier = Modifier.fillMaxSize(),
-                    label = "screen_crossfade"
+                    label = "screen_animated_transition"
                 ) { screen ->
                     when (screen) {
                         AppScreen.HOME -> HomeScreen(

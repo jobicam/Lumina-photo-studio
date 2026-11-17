@@ -12,9 +12,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -192,7 +194,7 @@ fun RetouchPanel(
                     .clip(RoundedCornerShape(10.dp))
                     .background(eraserBg)
                     .border(1.dp, eraserBorder, RoundedCornerShape(10.dp))
-                    .clickable {
+                    .bounceClickable(pressedScale = 0.93f) {
                         if (hapticFeedback) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onToggleEraser()
                     }
@@ -232,10 +234,17 @@ fun RetouchPanel(
                 val isSelected = !isEraser && tool == activeTool
                 val toolAccent = retouchToolAccent(tool)
                 val title = AppStrings.retouchTitle(tool, lang)
-                val cardScale by animateFloatAsState(
+                val cardInteraction = remember { MutableInteractionSource() }
+                val pressScale by rememberPressScale(cardInteraction, pressedScale = 0.92f)
+                val selectScale by animateFloatAsState(
                     targetValue = if (isSelected) 1.0f else 0.97f,
-                    animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                    animationSpec = StudioMotion.PressSpring,
                     label = "tool_card_scale"
+                )
+                val indicatorWidth by animateDpAsState(
+                    targetValue = if (isSelected) 18.dp else 8.dp,
+                    animationSpec = StudioMotion.PanelHeightSpring,
+                    label = "tool_indicator_width"
                 )
                 val borderColor by animateColorAsState(
                     targetValue = if (isSelected) toolAccent else StudioBorder,
@@ -246,8 +255,9 @@ fun RetouchPanel(
                 Box(
                     modifier = Modifier
                         .graphicsLayer {
-                            scaleX = cardScale
-                            scaleY = cardScale
+                            val combined = selectScale * pressScale
+                            scaleX = combined
+                            scaleY = combined
                         }
                         .clip(RoundedCornerShape(12.dp))
                         .background(
@@ -267,7 +277,10 @@ fun RetouchPanel(
                             color = borderColor,
                             shape = RoundedCornerShape(12.dp)
                         )
-                        .clickable {
+                        .clickable(
+                            interactionSource = cardInteraction,
+                            indication = LocalIndication.current
+                        ) {
                             if (hapticFeedback) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelectTool(tool)
                         }
@@ -304,7 +317,7 @@ fun RetouchPanel(
                             Box(
                                 modifier = Modifier
                                     .padding(top = 2.dp)
-                                    .width(if (isSelected) 18.dp else 8.dp)
+                                    .width(indicatorWidth)
                                     .height(2.dp)
                                     .clip(CircleShape)
                                     .background(if (isSelected) toolAccent else toolAccent.copy(alpha = 0.35f))
@@ -483,7 +496,7 @@ fun RetouchPanel(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(7.dp))
                                     .background(AccentAmber)
-                                    .clickable(onClick = onToggleEraser)
+                                    .bounceClickable(pressedScale = 0.92f, onClick = onToggleEraser)
                                     .padding(horizontal = 9.dp, vertical = 3.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -599,7 +612,7 @@ fun RetouchPanel(
                         )
                     )
                     .border(1.dp, AccentPink.copy(alpha = 0.50f), RoundedCornerShape(10.dp))
-                    .clickable(onClick = onAutoSkinSmooth)
+                    .bounceClickable(pressedScale = 0.95f, onClick = onAutoSkinSmooth)
                     .padding(horizontal = 10.dp)
                     .testTag("auto_skin_smooth_button"),
                 contentAlignment = Alignment.Center
@@ -630,7 +643,7 @@ fun RetouchPanel(
                     .clip(RoundedCornerShape(10.dp))
                     .background(AccentCyan.copy(alpha = 0.14f))
                     .border(1.dp, AccentCyan.copy(alpha = 0.48f), RoundedCornerShape(10.dp))
-                    .clickable(onClick = onOpenBackgroundBlur)
+                    .bounceClickable(pressedScale = 0.95f, onClick = onOpenBackgroundBlur)
                     .padding(horizontal = 10.dp)
                     .testTag("quick_blur_bg_button"),
                 contentAlignment = Alignment.Center
@@ -720,16 +733,26 @@ private fun BrushSizePresetChip(
     onClick: () -> Unit
 ) {
     val isActive = kotlin.math.abs(currentRadius - targetRadius) <= 6f
+    val chipBg by animateColorAsState(
+        targetValue = if (isActive) accentColor.copy(alpha = 0.24f) else StudioBackground.copy(alpha = 0.7f),
+        animationSpec = tween(160),
+        label = "chip_bg_$label"
+    )
+    val chipBorder by animateColorAsState(
+        targetValue = if (isActive) accentColor else StudioBorder,
+        animationSpec = tween(160),
+        label = "chip_border_$label"
+    )
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(if (isActive) accentColor.copy(alpha = 0.24f) else StudioBackground.copy(alpha = 0.7f))
+            .background(chipBg)
             .border(
                 width = 1.dp,
-                color = if (isActive) accentColor else StudioBorder,
+                color = chipBorder,
                 shape = RoundedCornerShape(6.dp)
             )
-            .clickable(onClick = onClick)
+            .bounceClickable(pressedScale = 0.88f, onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 3.dp)
             .testTag(tag),
         contentAlignment = Alignment.Center

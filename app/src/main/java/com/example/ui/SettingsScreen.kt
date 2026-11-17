@@ -1,9 +1,16 @@
 package com.example.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +66,8 @@ import com.example.model.ExportFormat
 import com.example.model.UpdateStatus
 import com.example.ui.components.UpdateCheckerModal
 import com.example.ui.components.WhatsNewModal
+import com.example.ui.components.bounceClickable
+import com.example.ui.components.pressBounce
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.ErrorRed
@@ -111,9 +120,13 @@ fun SettingsScreen(
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val backInteraction = remember { MutableInteractionSource() }
                 IconButton(
                     onClick = { viewModel.navigateTo(AppScreen.HOME) },
-                    modifier = Modifier.testTag("settings_back_button")
+                    interactionSource = backInteraction,
+                    modifier = Modifier
+                        .pressBounce(backInteraction, pressedScale = 0.90f)
+                        .testTag("settings_back_button")
                 ) {
                     Box(
                         modifier = Modifier
@@ -193,17 +206,27 @@ fun SettingsScreen(
                     ) {
                         AppLanguage.values().forEach { l ->
                             val isSelected = settings.appLanguage == l
+                            val pillBg by animateColorAsState(
+                                targetValue = if (isSelected) AccentCyan else StudioSurfaceVariant,
+                                animationSpec = tween(180),
+                                label = "lang_pill_bg"
+                            )
+                            val pillBorder by animateColorAsState(
+                                targetValue = if (isSelected) AccentCyan else StudioBorder,
+                                animationSpec = tween(180),
+                                label = "lang_pill_border"
+                            )
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSelected) AccentCyan else StudioSurfaceVariant)
+                                    .background(pillBg)
                                     .border(
                                         width = if (isSelected) 1.5.dp else 1.dp,
-                                        color = if (isSelected) AccentCyan else StudioBorder,
+                                        color = pillBorder,
                                         shape = RoundedCornerShape(10.dp)
                                     )
-                                    .clickable {
+                                    .bounceClickable(pressedScale = 0.95f) {
                                         viewModel.updateSettings { it.copy(appLanguage = l) }
                                     }
                                     .padding(vertical = 10.dp),
@@ -265,12 +288,17 @@ fun SettingsScreen(
                     ) {
                         ExportFormat.values().forEach { fmt ->
                             val isSelected = settings.exportFormat == fmt
+                            val fmtBg by animateColorAsState(
+                                targetValue = if (isSelected) AccentCyan else StudioSurfaceVariant,
+                                animationSpec = tween(180),
+                                label = "fmt_pill_bg"
+                            )
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSelected) AccentCyan else StudioSurfaceVariant)
-                                    .clickable {
+                                    .background(fmtBg)
+                                    .bounceClickable(pressedScale = 0.95f) {
                                         viewModel.updateSettings { it.copy(exportFormat = fmt) }
                                     }
                                     .padding(vertical = 10.dp),
@@ -288,43 +316,49 @@ fun SettingsScreen(
                 }
 
                 // JPEG Quality Slider (if JPEG format)
-                if (settings.exportFormat == ExportFormat.JPEG) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(StudioBorder)
-                    )
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = AppStrings.qualityHeader(lang),
-                                fontSize = 13.sp,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "${settings.jpegQuality}%",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AccentCyan
+                AnimatedVisibility(
+                    visible = settings.exportFormat == ExportFormat.JPEG,
+                    enter = fadeIn(tween(180)) + expandVertically(tween(200)),
+                    exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+                ) {
+                    Column {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(StudioBorder)
+                        )
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = AppStrings.qualityHeader(lang),
+                                    fontSize = 13.sp,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "${settings.jpegQuality}%",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AccentCyan
+                                )
+                            }
+                            Slider(
+                                value = settings.jpegQuality.toFloat(),
+                                onValueChange = { q ->
+                                    viewModel.updateSettings { it.copy(jpegQuality = q.toInt()) }
+                                },
+                                valueRange = 70f..100f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = AccentCyan,
+                                    activeTrackColor = AccentCyan,
+                                    inactiveTrackColor = StudioBorder
+                                ),
+                                modifier = Modifier.testTag("settings_jpeg_quality_slider")
                             )
                         }
-                        Slider(
-                            value = settings.jpegQuality.toFloat(),
-                            onValueChange = { q ->
-                                viewModel.updateSettings { it.copy(jpegQuality = q.toInt()) }
-                            },
-                            valueRange = 70f..100f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = AccentCyan,
-                                activeTrackColor = AccentCyan,
-                                inactiveTrackColor = StudioBorder
-                            ),
-                            modifier = Modifier.testTag("settings_jpeg_quality_slider")
-                        )
                     }
                 }
 
@@ -349,17 +383,27 @@ fun SettingsScreen(
                     ) {
                         listOf(1600 to "1600 px", 2048 to "2048 px (HD)", 3200 to "3200 px (4K)").forEach { (res, label) ->
                             val isSelected = settings.maxResolution == res
+                            val resBg by animateColorAsState(
+                                targetValue = if (isSelected) StudioSurfaceVariant else StudioBackground,
+                                animationSpec = tween(180),
+                                label = "res_pill_bg"
+                            )
+                            val resBorder by animateColorAsState(
+                                targetValue = if (isSelected) AccentCyan else StudioBorder,
+                                animationSpec = tween(180),
+                                label = "res_pill_border"
+                            )
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) StudioSurfaceVariant else StudioBackground)
+                                    .background(resBg)
                                     .border(
                                         width = if (isSelected) 1.5.dp else 1.dp,
-                                        color = if (isSelected) AccentCyan else StudioBorder,
+                                        color = resBorder,
                                         shape = RoundedCornerShape(8.dp)
                                     )
-                                    .clickable {
+                                    .bounceClickable(pressedScale = 0.95f) {
                                         viewModel.updateSettings { it.copy(maxResolution = res) }
                                     }
                                     .padding(vertical = 8.dp),
@@ -492,11 +536,15 @@ fun SettingsScreen(
                         )
                     }
 
+                    val clearCacheInteraction = remember { MutableInteractionSource() }
                     Button(
                         onClick = { viewModel.clearCache() },
+                        interactionSource = clearCacheInteraction,
                         colors = ButtonDefaults.buttonColors(containerColor = StudioSurfaceVariant),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.testTag("clear_cache_button")
+                        modifier = Modifier
+                            .pressBounce(clearCacheInteraction, pressedScale = 0.94f)
+                            .testTag("clear_cache_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.DeleteSweep,
@@ -522,7 +570,7 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { showWhatsNew = true }
+                        .bounceClickable(pressedScale = 0.98f) { showWhatsNew = true }
                         .padding(14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -599,7 +647,7 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { viewModel.checkForUpdates(openDialog = true) }
+                        .bounceClickable(pressedScale = 0.98f) { viewModel.checkForUpdates(openDialog = true) }
                         .padding(14.dp)
                         .testTag("settings_check_updates_row"),
                     horizontalArrangement = Arrangement.SpaceBetween,

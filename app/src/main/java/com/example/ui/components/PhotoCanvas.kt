@@ -1,11 +1,24 @@
 package com.example.ui.components
 
 import android.graphics.Bitmap
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateOffsetAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
@@ -13,6 +26,7 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -113,9 +127,36 @@ fun PhotoCanvas(
 ) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var useSpringZoom by remember { mutableStateOf(false) }
+
+    val displayScale by animateFloatAsState(
+        targetValue = scale,
+        animationSpec = if (useSpringZoom) {
+            spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        } else {
+            snap()
+        },
+        label = "canvas_zoom_scale"
+    )
+    val displayOffset by animateOffsetAsState(
+        targetValue = offset,
+        animationSpec = if (useSpringZoom) {
+            spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        } else {
+            snap()
+        },
+        label = "canvas_zoom_offset"
+    )
 
     // Reset zoom/pan when image dimensions change or crop mode engages
     LaunchedEffect(displayBitmap?.width, displayBitmap?.height, isCropMode) {
+        useSpringZoom = false
         scale = 1f
         offset = Offset.Zero
     }
@@ -166,6 +207,7 @@ fun PhotoCanvas(
                                     }
                                 },
                                 onDoubleTap = { tapPos ->
+                                    useSpringZoom = true
                                     if (scale > 1.05f) {
                                         scale = 1f
                                         offset = Offset.Zero
@@ -191,6 +233,7 @@ fun PhotoCanvas(
                     .pointerInput(isRetouchMode, isSplitView, isCropMode, renderW, renderH) {
                         if (!isRetouchMode && !isSplitView && !isCropMode) {
                             detectTransformGestures { _, pan, zoom, _ ->
+                                useSpringZoom = false
                                 val nextScale = (scale * zoom).coerceIn(MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM)
                                 if (nextScale <= 1.01f) {
                                     scale = 1f
@@ -245,6 +288,7 @@ fun PhotoCanvas(
                                     }
 
                                     if (activeChanges.size >= 2) {
+                                        useSpringZoom = false
                                         if (!isMultiTouchZoom) {
                                             isMultiTouchZoom = true
                                             currentPoints.clear()
@@ -294,10 +338,10 @@ fun PhotoCanvas(
                         }
                     }
                     .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offset.x
-                        translationY = offset.y
+                        scaleX = displayScale
+                        scaleY = displayScale
+                        translationX = displayOffset.x
+                        translationY = displayOffset.y
                     }
             ) {
                 val showBmp = if (isComparing && originalBitmap != null) originalBitmap else displayBitmap
@@ -524,11 +568,16 @@ fun PhotoCanvas(
         }
 
         // Restore Brush active indicator pill
-        if (isRetouchMode && isEraser && !isSplitView && !isComparing) {
+        AnimatedVisibility(
+            visible = isRetouchMode && isEraser && !isSplitView && !isComparing,
+            enter = fadeIn(tween(180)) + slideInVertically { -it / 2 } + scaleIn(initialScale = 0.92f),
+            exit = fadeOut(tween(140)) + slideOutVertically { -it / 2 } + scaleOut(targetScale = 0.92f),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 12.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 12.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(StudioSurface.copy(alpha = 0.90f))
                     .border(1.dp, AccentAmber.copy(alpha = 0.75f), RoundedCornerShape(16.dp))
@@ -545,11 +594,16 @@ fun PhotoCanvas(
         }
 
         // Before indicator badge when holding compare
-        if (isComparing) {
+        AnimatedVisibility(
+            visible = isComparing,
+            enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.90f),
+            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.90f),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 16.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 16.dp)
                     .background(AccentAmber, shape = RoundedCornerShape(20.dp))
                     .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
@@ -561,52 +615,34 @@ fun PhotoCanvas(
                 )
             }
         }
-        // Quick Zoom In / Out / Reset pill bar for precision editing & retouching
-        if (displayBitmap != null && containerWidth > 0f && containerHeight > 0f && !isSplitView && !isCropMode && !isComparing) {
-            val bmpWidth = displayBitmap.width.toFloat()
-            val bmpHeight = displayBitmap.height.toFloat()
-            val fitScale = min(containerWidth / bmpWidth, containerHeight / bmpHeight)
-            val renderW = bmpWidth * fitScale
-            val renderH = bmpHeight * fitScale
 
-            ZoomControlsBar(
-                scale = scale,
-                lang = lang,
-                onZoomOut = {
-                    val (nextScale, nextOffset) = computeZoomedState(
-                        currentScale = scale,
-                        currentOffset = offset,
-                        targetScale = nextZoomOutStep(scale),
-                        renderW = renderW,
-                        renderH = renderH,
-                        containerW = containerWidth,
-                        containerH = containerHeight
-                    )
-                    scale = nextScale
-                    offset = nextOffset
-                },
-                onZoomIn = {
-                    val (nextScale, nextOffset) = computeZoomedState(
-                        currentScale = scale,
-                        currentOffset = offset,
-                        targetScale = nextZoomInStep(scale),
-                        renderW = renderW,
-                        renderH = renderH,
-                        containerW = containerWidth,
-                        containerH = containerHeight
-                    )
-                    scale = nextScale
-                    offset = nextOffset
-                },
-                onToggleReset = {
-                    if (scale > 1.05f) {
-                        scale = MIN_CANVAS_ZOOM
-                        offset = Offset.Zero
-                    } else {
+        // Quick Zoom In / Out / Reset pill bar for precision editing & retouching
+        val showZoomControls = displayBitmap != null && containerWidth > 0f && containerHeight > 0f &&
+            !isSplitView && !isCropMode && !isComparing
+        AnimatedVisibility(
+            visible = showZoomControls,
+            enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
+            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.92f),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 64.dp)
+        ) {
+            if (displayBitmap != null && containerWidth > 0f && containerHeight > 0f) {
+                val bmpWidth = displayBitmap.width.toFloat()
+                val bmpHeight = displayBitmap.height.toFloat()
+                val fitScale = min(containerWidth / bmpWidth, containerHeight / bmpHeight)
+                val renderW = bmpWidth * fitScale
+                val renderH = bmpHeight * fitScale
+
+                ZoomControlsBar(
+                    scale = scale,
+                    lang = lang,
+                    onZoomOut = {
+                        useSpringZoom = true
                         val (nextScale, nextOffset) = computeZoomedState(
                             currentScale = scale,
                             currentOffset = offset,
-                            targetScale = 2.0f,
+                            targetScale = nextZoomOutStep(scale),
                             renderW = renderW,
                             renderH = renderH,
                             containerW = containerWidth,
@@ -614,12 +650,42 @@ fun PhotoCanvas(
                         )
                         scale = nextScale
                         offset = nextOffset
+                    },
+                    onZoomIn = {
+                        useSpringZoom = true
+                        val (nextScale, nextOffset) = computeZoomedState(
+                            currentScale = scale,
+                            currentOffset = offset,
+                            targetScale = nextZoomInStep(scale),
+                            renderW = renderW,
+                            renderH = renderH,
+                            containerW = containerWidth,
+                            containerH = containerHeight
+                        )
+                        scale = nextScale
+                        offset = nextOffset
+                    },
+                    onToggleReset = {
+                        useSpringZoom = true
+                        if (scale > 1.05f) {
+                            scale = MIN_CANVAS_ZOOM
+                            offset = Offset.Zero
+                        } else {
+                            val (nextScale, nextOffset) = computeZoomedState(
+                                currentScale = scale,
+                                currentOffset = offset,
+                                targetScale = 2.0f,
+                                renderW = renderW,
+                                renderH = renderH,
+                                containerW = containerWidth,
+                                containerH = containerHeight
+                            )
+                            scale = nextScale
+                            offset = nextOffset
+                        }
                     }
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = 64.dp)
-            )
+                )
+            }
         }
     }
 }
@@ -636,6 +702,13 @@ private fun ZoomControlsBar(
     val canZoomOut = scale > 1.05f
     val canZoomIn = scale < MAX_CANVAS_ZOOM - 0.05f
     val zoomLabel = String.format(Locale.US, "%.1fx", scale)
+    val borderColor by animateColorAsState(
+        targetValue = if (canZoomOut) AccentCyan.copy(alpha = 0.7f) else StudioBorder,
+        animationSpec = tween(180),
+        label = "zoom_bar_border"
+    )
+    val zoomOutInteraction = remember { MutableInteractionSource() }
+    val zoomInInteraction = remember { MutableInteractionSource() }
 
     Row(
         modifier = modifier
@@ -643,7 +716,7 @@ private fun ZoomControlsBar(
             .background(StudioSurface.copy(alpha = 0.88f))
             .border(
                 width = 1.dp,
-                color = if (canZoomOut) AccentCyan.copy(alpha = 0.7f) else StudioBorder,
+                color = borderColor,
                 shape = RoundedCornerShape(24.dp)
             )
             .padding(horizontal = 2.dp)
@@ -653,7 +726,9 @@ private fun ZoomControlsBar(
         IconButton(
             onClick = onZoomOut,
             enabled = canZoomOut,
+            interactionSource = zoomOutInteraction,
             modifier = Modifier
+                .pressBounce(zoomOutInteraction, pressedScale = 0.88f, enabled = canZoomOut)
                 .minimumInteractiveComponentSize()
                 .testTag("zoom_out_button")
         ) {
@@ -669,7 +744,7 @@ private fun ZoomControlsBar(
             modifier = Modifier
                 .minimumInteractiveComponentSize()
                 .clip(RoundedCornerShape(16.dp))
-                .clickable(onClick = onToggleReset)
+                .bounceClickable(pressedScale = 0.92f, onClick = onToggleReset)
                 .padding(horizontal = 8.dp, vertical = 6.dp)
                 .testTag("zoom_reset_button"),
             contentAlignment = Alignment.Center
@@ -687,7 +762,9 @@ private fun ZoomControlsBar(
         IconButton(
             onClick = onZoomIn,
             enabled = canZoomIn,
+            interactionSource = zoomInInteraction,
             modifier = Modifier
+                .pressBounce(zoomInInteraction, pressedScale = 0.88f, enabled = canZoomIn)
                 .minimumInteractiveComponentSize()
                 .testTag("zoom_in_button")
         ) {

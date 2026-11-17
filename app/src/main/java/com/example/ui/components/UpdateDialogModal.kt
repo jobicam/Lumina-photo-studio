@@ -3,8 +3,15 @@ package com.example.ui.components
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -180,9 +187,13 @@ fun UpdateCheckerModal(
                     }
                 }
 
+                val closeUpdateInteraction = remember { MutableInteractionSource() }
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier.testTag("close_update_modal_button")
+                    interactionSource = closeUpdateInteraction,
+                    modifier = Modifier
+                        .pressBounce(closeUpdateInteraction, pressedScale = 0.90f)
+                        .testTag("close_update_modal_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -318,87 +329,103 @@ fun UpdateCheckerModal(
             }
 
             // Download / Get Update CTA when available
-            if (updateStatus is UpdateStatus.UpdateAvailable) {
-                if (updateStatus.downloadUrl.isNotBlank()) {
-                    val isDirectApk = updateStatus.downloadUrl
-                        .substringBefore('?')
-                        .substringBefore('#')
-                        .endsWith(".apk", ignoreCase = true)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = {
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateStatus.downloadUrl)).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {
-                                    Toast.makeText(context, "Unable to open update link", Toast.LENGTH_SHORT).show()
+            AnimatedVisibility(
+                visible = updateStatus is UpdateStatus.UpdateAvailable,
+                enter = fadeIn(tween(200)) + expandVertically(tween(220)),
+                exit = fadeOut(tween(150)) + shrinkVertically(tween(180))
+            ) {
+                if (updateStatus is UpdateStatus.UpdateAvailable) {
+                    if (updateStatus.downloadUrl.isNotBlank()) {
+                        val isDirectApk = updateStatus.downloadUrl
+                            .substringBefore('?')
+                            .substringBefore('#')
+                            .endsWith(".apk", ignoreCase = true)
+                        Column {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val downloadInteraction = remember { MutableInteractionSource() }
+                                Button(
+                                    onClick = {
+                                        try {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateStatus.downloadUrl)).apply {
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {
+                                            Toast.makeText(context, "Unable to open update link", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    interactionSource = downloadInteraction,
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentAmber),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .pressBounce(downloadInteraction, pressedScale = 0.96f)
+                                        .testTag("open_update_url_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.OpenInNew,
+                                        contentDescription = null,
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (isDirectApk) AppStrings.downloadApkUpdate(lang) else AppStrings.downloadUpdate(lang),
+                                        color = Color.Black,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentAmber),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("open_update_url_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.OpenInNew,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+
+                                val copyInteraction = remember { MutableInteractionSource() }
+                                OutlinedButton(
+                                    onClick = {
+                                        clipboardManager.setText(AnnotatedString(updateStatus.downloadUrl))
+                                        Toast.makeText(context, AppStrings.linkCopiedToast(lang), Toast.LENGTH_SHORT).show()
+                                    },
+                                    interactionSource = copyInteraction,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .pressBounce(copyInteraction, pressedScale = 0.92f)
+                                        .testTag("copy_update_url_button"),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = AppStrings.linkCopiedToast(lang),
+                                        tint = AccentAmber,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = if (isDirectApk) AppStrings.downloadApkUpdate(lang) else AppStrings.downloadUpdate(lang),
-                                color = Color.Black,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                maxLines = 1,
-                                softWrap = false
+                                text = AppStrings.directUpdateHint(lang),
+                                fontSize = 11.sp,
+                                color = TextSecondary,
+                                lineHeight = 15.sp
                             )
                         }
-
-                        OutlinedButton(
-                            onClick = {
-                                clipboardManager.setText(AnnotatedString(updateStatus.downloadUrl))
-                                Toast.makeText(context, AppStrings.linkCopiedToast(lang), Toast.LENGTH_SHORT).show()
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .size(48.dp)
-                                .testTag("copy_update_url_button"),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ContentCopy,
-                                contentDescription = AppStrings.linkCopiedToast(lang),
-                                tint = AccentAmber,
-                                modifier = Modifier.size(18.dp)
+                    } else {
+                        Column {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = AppStrings.noDownloadLinkHint(lang),
+                                fontSize = 11.sp,
+                                color = AccentAmber,
+                                lineHeight = 15.sp
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = AppStrings.directUpdateHint(lang),
-                        fontSize = 11.sp,
-                        color = TextSecondary,
-                        lineHeight = 15.sp
-                    )
-                } else {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = AppStrings.noDownloadLinkHint(lang),
-                        fontSize = 11.sp,
-                        color = AccentAmber,
-                        lineHeight = 15.sp
-                    )
                 }
             }
 
@@ -409,15 +436,18 @@ fun UpdateCheckerModal(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                val whatsNewInteraction = remember { MutableInteractionSource() }
                 OutlinedButton(
                     onClick = {
                         onDismiss()
                         onOpenWhatsNew()
                     },
+                    interactionSource = whatsNewInteraction,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp)
+                        .pressBounce(whatsNewInteraction, pressedScale = 0.96f)
                         .testTag("open_whats_new_from_update_button")
                 ) {
                     Icon(
@@ -437,14 +467,18 @@ fun UpdateCheckerModal(
                     )
                 }
 
+                val recheckInteraction = remember { MutableInteractionSource() }
+                val canRecheck = updateStatus !is UpdateStatus.Checking
                 Button(
                     onClick = onCheckAgain,
-                    enabled = updateStatus !is UpdateStatus.Checking,
+                    enabled = canRecheck,
+                    interactionSource = recheckInteraction,
                     colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp)
+                        .pressBounce(recheckInteraction, pressedScale = 0.96f, enabled = canRecheck)
                         .testTag("recheck_update_button")
                 ) {
                     Icon(

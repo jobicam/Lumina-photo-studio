@@ -1,7 +1,7 @@
 {
-  "versionCode": 14,
-  "versionName": "2.8.0",
-  "releaseNotes": "Redesigned Retouch Studio with Restore Brush and directional Sculpt & Warp, plus Portrait Background Blur (Bokeh) and Photo Zoom (1.0x-6.0x).",
+  "versionCode": 15,
+  "versionName": "2.9.0",
+  "releaseNotes": "Smooth layout transitions with directional screen slides, animated editor drawers, spring button press feedback, and built-in GitHub release update checking.",
   "downloadUrl": "",
   "mandatory": false
 }

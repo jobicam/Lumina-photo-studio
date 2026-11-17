@@ -1,8 +1,15 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -156,9 +164,13 @@ fun WhatsNewModal(
                     }
                 }
 
+                val closeWhatsNewInteraction = remember { MutableInteractionSource() }
                 IconButton(
                     onClick = onDismiss,
-                    modifier = Modifier.testTag("close_whats_new_button")
+                    interactionSource = closeWhatsNewInteraction,
+                    modifier = Modifier
+                        .pressBounce(closeWhatsNewInteraction, pressedScale = 0.90f)
+                        .testTag("close_whats_new_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -170,35 +182,43 @@ fun WhatsNewModal(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            if (!upgradedFromVersion.isNullOrBlank()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF1B4332).copy(alpha = 0.65f))
-                        .border(1.dp, Color(0xFF52B788).copy(alpha = 0.65f), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .testTag("upgraded_from_banner"),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SystemUpdate,
-                        contentDescription = null,
-                        tint = Color(0xFF74C69D),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = AppStrings.updatedFromLabel(upgradedFromVersion, versionName, lang),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD8F3DC)
-                    )
+            AnimatedVisibility(
+                visible = !upgradedFromVersion.isNullOrBlank(),
+                enter = fadeIn(tween(200)) + expandVertically(tween(220)),
+                exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+            ) {
+                upgradedFromVersion?.takeIf { it.isNotBlank() }?.let { prevVer ->
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF1B4332).copy(alpha = 0.65f))
+                                .border(1.dp, Color(0xFF52B788).copy(alpha = 0.65f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .testTag("upgraded_from_banner"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                tint = Color(0xFF74C69D),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = AppStrings.updatedFromLabel(prevVer, versionName, lang),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD8F3DC)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // Section 1: CURRENT VERSION HIGHLIGHT (v2.8.0)
+            // Section 1: CURRENT VERSION HIGHLIGHT (v2.9.0)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -209,14 +229,14 @@ fun WhatsNewModal(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.AutoFixHigh,
+                    imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
                     tint = AccentCyan,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ស្ទូឌីយោ Retouch ថ្មី" else "What's New in v$versionName — Redesigned Retouch Studio",
+                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ចលនារលូន & ប្រព័ន្ធអាប់ដេត" else "What's New in v$versionName — Smooth Studio Motion",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = AccentCyan
@@ -227,46 +247,51 @@ fun WhatsNewModal(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 WhatsNewItem(
-                    icon = Icons.Default.AutoFixHigh,
-                    iconTint = AccentPink,
-                    title = if (isKhmer) "រចនាស្ទូឌីយោ Retouch ថ្មី & ជក់ Restore" else "Redesigned Retouch Studio & Restore Brush",
-                    description = if (isKhmer)
-                        "កាតជក់តាមពណ៌ ការមើលទំហំជក់ផ្ទាល់ ប៊ូតុង S/M/L និងជក់ Restore ដើម្បីស្ដារផ្ទៃរូបភាពដើមដោយរលូន។"
-                    else
-                        "Accent-coded brush dock, live nib preview with S/M/L presets, and a working Restore Brush to paint back original unretouched pixels."
-                )
-
-                WhatsNewItem(
                     icon = Icons.Default.AutoAwesome,
-                    iconTint = AccentPurple,
-                    title = if (isKhmer) "កែទម្រង់មុខ Directional Sculpt & Warp" else "Directional Bilinear Sculpt & Warp",
+                    iconTint = AccentCyan,
+                    title = if (isKhmer) "ចលនាផ្លាស់ប្តូរអេក្រង់រលូន & Spring Physics" else "Smooth Layout Transitions & Spring Physics",
                     description = if (isKhmer)
-                        "អូសដើម្បីរុញកែទម្រង់មុខតាមទិសដៅម្រាមដៃដោយរលូន និងមានគុណភាពច្បាស់។"
+                        "ការផ្លាស់ប្តូរអេក្រង់តាមទិសដៅ ការបើក-បិទថតឧបករណ៍ដោយរលូន និងចលនាតុបតែងលើផ្ទាំងកែរូប។"
                     else
-                        "Smooth directional forward-push contour shaping with bilinear sampling and Hermite brush falloff."
+                        "Fluid directional screen slides, animated editor tool drawers, expanding controls, and animated tab indicators."
                 )
 
                 WhatsNewItem(
-                    icon = Icons.Default.ZoomIn,
-                    iconTint = AccentCyan,
-                    title = if (isKhmer) "ព្រាលផ្ទៃខាងក្រោយ & ពង្រីករូប 1.0x–6.0x" else "Background Blur Bokeh & 6.0x Precision Zoom",
+                    icon = Icons.Default.TouchApp,
+                    iconTint = AccentPink,
+                    title = if (isKhmer) "ចលនាចុចប៊ូតុងឆ្លើយតបរហ័ស & ពង្រីករលូន" else "Tactile Button Press Animations & Zoom Springs",
                     description = if (isKhmer)
-                        "ព្រាលផ្ទៃខាងក្រោយដោយចុចផ្ដោត និងពង្រីករូបភាពរហូតដល់ 6.0x ពេលកំពុង Retouch។"
+                        "ប្រតិកម្មលោតស្រាលៗពេលចុចលើប៊ូតុង កាតតម្រង ជក់កែមុខ និងការពង្រីករូបភាព។"
                     else
-                        "Tap-to-focus portrait background bokeh with Subject Protection and 2-finger pinch/zoom right inside Retouch mode."
+                        "Responsive spring bounce feedback across every studio button, brush tile, filter card, and canvas zoom step."
+                )
+
+                WhatsNewItem(
+                    icon = Icons.Default.SystemUpdate,
+                    iconTint = AccentPurple,
+                    title = if (isKhmer) "ប្រព័ន្ធពិនិត្យកំណែថ្មី GitHub ភ្ជាប់មកស្រេច" else "Built-In Official GitHub Release Checker",
+                    description = if (isKhmer)
+                        "ពិនិត្យរកកំណែថ្មីដោយចុចតែម្តងតាមតំណ GitHub ផ្លូវការ ដោយមិនបាច់បញ្ចូលតំណដោយដៃ។"
+                    else
+                        "One-tap update checks locked to the official Lumina Photo GitHub releases feed with zero manual URL setup."
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Expandable: PREVIOUS UPDATES (v2.3.0, v2.2.0, v2.1.0, v2.0.1, v2.0.0, v1.3.0, v1.2.0, v1.1.0 & v1.0.0)
+            // Expandable: PREVIOUS UPDATES
+            val chevronRotation by animateFloatAsState(
+                targetValue = if (showPreviousVersions) 180f else 0f,
+                animationSpec = tween(220),
+                label = "previous_updates_chevron"
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
                     .background(StudioCard)
                     .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
-                    .clickable { showPreviousVersions = !showPreviousVersions }
+                    .bounceClickable(pressedScale = 0.98f) { showPreviousVersions = !showPreviousVersions }
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -287,22 +312,36 @@ fun WhatsNewModal(
                     )
                 }
                 Icon(
-                    imageVector = if (showPreviousVersions) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = null,
                     tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier
+                        .size(18.dp)
+                        .graphicsLayer { rotationZ = chevronRotation }
                 )
             }
 
-            if (showPreviousVersions) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WhatsNewItem(
-                        icon = Icons.Default.ZoomIn,
-                        iconTint = AccentCyan,
-                        title = "v2.7.0: Background Blur (Bokeh) & Photo Zoom (1.0x–6.0x)",
-                        description = "Optical portrait background blur with tap-to-focus, Subject Protection, and pinch/zoom controls."
-                    )
+            AnimatedVisibility(
+                visible = showPreviousVersions,
+                enter = fadeIn(tween(200)) + expandVertically(tween(220)),
+                exit = fadeOut(tween(150)) + shrinkVertically(tween(180))
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WhatsNewItem(
+                            icon = Icons.Default.AutoFixHigh,
+                            iconTint = AccentPink,
+                            title = "v2.8.0: Redesigned Retouch Studio & Restore Brush",
+                            description = "Accent-coded brush dock, live nib preview with S/M/L presets, directional Sculpt & Warp, and Restore Brush."
+                        )
+
+                        WhatsNewItem(
+                            icon = Icons.Default.ZoomIn,
+                            iconTint = AccentCyan,
+                            title = "v2.7.0: Background Blur (Bokeh) & Photo Zoom (1.0x–6.0x)",
+                            description = "Optical portrait background blur with tap-to-focus, Subject Protection, and pinch/zoom controls."
+                        )
 
                     WhatsNewItem(
                         icon = Icons.Default.Face,
@@ -387,18 +426,22 @@ fun WhatsNewModal(
                         title = "v1.0.0: Pro Retouching & 15+ Cinematic Filters",
                         description = "Bilateral skin smoothing, teeth whitening, eye pop, RGB tone curves, 8-channel HSL, and split-screen comparison."
                     )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
             if (onCheckUpdates != null) {
+                val whatsNewUpdateInteraction = remember { MutableInteractionSource() }
                 OutlinedButton(
                     onClick = onCheckUpdates,
+                    interactionSource = whatsNewUpdateInteraction,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(46.dp)
+                        .pressBounce(whatsNewUpdateInteraction, pressedScale = 0.96f)
                         .testTag("whats_new_check_updates_button")
                 ) {
                     Icon(
@@ -419,13 +462,16 @@ fun WhatsNewModal(
             }
 
             // Got It Button
+            val dismissInteraction = remember { MutableInteractionSource() }
             Button(
                 onClick = onDismiss,
+                interactionSource = dismissInteraction,
                 colors = ButtonDefaults.buttonColors(containerColor = AccentCyan),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
+                    .pressBounce(dismissInteraction, pressedScale = 0.96f)
                     .testTag("dismiss_whats_new_button")
             ) {
                 Text(

@@ -11,13 +11,16 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,6 +92,8 @@ import com.example.ui.components.SaveOptionsModal
 import com.example.ui.components.SaveSuccessModal
 import com.example.ui.components.UpdateCheckerModal
 import com.example.ui.components.WhatsNewModal
+import com.example.ui.components.bounceClickable
+import com.example.ui.components.pressBounce
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.AccentPink
@@ -231,7 +236,7 @@ fun HomeScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(StudioCard)
                             .border(1.dp, StudioBorder, RoundedCornerShape(12.dp))
-                            .clickable { showWhatsNew = true }
+                            .bounceClickable(pressedScale = 0.94f) { showWhatsNew = true }
                             .padding(horizontal = 8.dp, vertical = 5.dp)
                             .testTag("home_version_badge")
                     ) {
@@ -256,9 +261,13 @@ fun HomeScreen(
 
                     // Direct Check for Updates button
                     val hasAvailableUpdate = uiState.updateStatus is com.example.model.UpdateStatus.UpdateAvailable
+                    val updatesInteraction = remember { MutableInteractionSource() }
                     IconButton(
                         onClick = { viewModel.checkForUpdates(openDialog = true) },
-                        modifier = Modifier.testTag("home_check_updates_button")
+                        interactionSource = updatesInteraction,
+                        modifier = Modifier
+                            .pressBounce(updatesInteraction, pressedScale = 0.90f)
+                            .testTag("home_check_updates_button")
                     ) {
                         Box(
                             modifier = Modifier
@@ -282,9 +291,13 @@ fun HomeScreen(
                     }
 
                     // Settings Button
+                    val settingsInteraction = remember { MutableInteractionSource() }
                     IconButton(
                         onClick = { viewModel.navigateTo(AppScreen.SETTINGS) },
-                        modifier = Modifier.testTag("home_settings_button")
+                        interactionSource = settingsInteraction,
+                        modifier = Modifier
+                            .pressBounce(settingsInteraction, pressedScale = 0.90f)
+                            .testTag("home_settings_button")
                     ) {
                         Box(
                             modifier = Modifier
@@ -310,14 +323,22 @@ fun HomeScreen(
             // ----------------------------------------------------
             // 2. ACTIVE SESSION / RESUME CARD (if photo loaded)
             // ----------------------------------------------------
-            if (uiState.workingBitmap != null) {
-                ActiveSessionCard(
-                    workingBitmap = uiState.workingBitmap!!,
-                    lang = lang,
-                    onResume = { viewModel.navigateTo(AppScreen.EDITOR) },
-                    onSave = requestSaveAction
-                )
-                Spacer(modifier = Modifier.height(20.dp))
+            AnimatedVisibility(
+                visible = uiState.workingBitmap != null,
+                enter = fadeIn(tween(220)) + expandVertically(tween(240)),
+                exit = fadeOut(tween(160)) + shrinkVertically(tween(200))
+            ) {
+                uiState.workingBitmap?.let { bmp ->
+                    Column {
+                        ActiveSessionCard(
+                            workingBitmap = bmp,
+                            lang = lang,
+                            onResume = { viewModel.navigateTo(AppScreen.EDITOR) },
+                            onSave = requestSaveAction
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                    }
+                }
             }
 
             // ----------------------------------------------------
@@ -716,7 +737,7 @@ private fun ActiveSessionCard(
                 )
             )
             .border(1.dp, AccentCyan.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-            .clickable(onClick = onResume)
+            .bounceClickable(pressedScale = 0.97f, onClick = onResume)
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -770,9 +791,13 @@ private fun ActiveSessionCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Direct Save to Gallery button
+            val saveInteraction = remember { MutableInteractionSource() }
             IconButton(
                 onClick = onSave,
-                modifier = Modifier.testTag("home_active_session_save")
+                interactionSource = saveInteraction,
+                modifier = Modifier
+                    .pressBounce(saveInteraction, pressedScale = 0.90f)
+                    .testTag("home_active_session_save")
             ) {
                 Box(
                     modifier = Modifier
@@ -824,7 +849,7 @@ private fun StudioActionCard(
             .clip(RoundedCornerShape(16.dp))
             .background(StudioCard)
             .border(1.dp, StudioBorder, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .bounceClickable(pressedScale = 0.95f, onClick = onClick)
             .padding(16.dp)
     ) {
         Box(
@@ -875,7 +900,7 @@ private fun SamplePhotoHomeCard(
             .clip(RoundedCornerShape(16.dp))
             .background(StudioCard)
             .border(1.dp, StudioBorder, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .bounceClickable(pressedScale = 0.95f, onClick = onClick)
             .padding(10.dp)
     ) {
         Box(

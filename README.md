@@ -2,7 +2,7 @@
 
 **Lumina Photo** is a 100% on-device Android photo editor and portrait retouching studio built with Kotlin and Jetpack Compose (Material 3). Every edit, skin analysis, and background bokeh effect runs locally on your phone—no images or facial metrics are ever uploaded to external servers.
 
-**Current Version:** `v2.8.0` (Build `14`)  
+**Current Version:** `v2.9.0` (Build `15`)  
 **Min SDK:** Android 7.0 (API 24) · **Target / Compile SDK:** Android 16 (API 36)
 
 ---
@@ -45,7 +45,7 @@
 ### Prerequisites
 - **JDK 21**
 - **Android SDK 36** (`platforms;android-36.1`, `build-tools;36.0.0`)
-- **Gradle 9.3.1** (or system `gradle` CLI)
+- **Gradle 9.9.1** (or system `gradle` CLI)
 
 ### Commands
 ```bash
@@ -61,7 +61,7 @@ The generated APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## GitHub Actions APK Releases & In-App Updates
 
-This repository includes an automated release workflow (`.github/workflows/release-apk.yml`) triggered by pushing a `v*` tag (e.g. `v2.8.0`) or manually from **Actions → Release Lumina Photo APK → Run workflow**.
+This repository includes an automated release workflow (`.github/workflows/release-apk.yml`) triggered by pushing a `v*` tag (e.g. `v2.9.0`) or manually from **Actions → Release Lumina Photo APK → Run workflow**.
 
 ### 1. Consistent Signing Key (for In-Place APK Updates)
 To allow users to install new APK releases directly over older versions without uninstalling:
@@ -71,7 +71,7 @@ To allow users to install new APK releases directly over older versions without 
 
 ### 2. Customizing Release Name / Tag
 When running **Release Lumina Photo APK** manually via **Run workflow**, you can set:
-- **`tag`:** Release tag (default `v2.8.0`)
+- **`tag`:** Release tag (default `v2.9.0`)
 - **`apk_name`:** Optional APK asset filename (default `LuminaPhoto.apk`)
 - **`release_title`:** Optional GitHub Release title
 
