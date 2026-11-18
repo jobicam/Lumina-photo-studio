@@ -60,7 +60,9 @@ import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Filter
+import androidx.compose.material.icons.filled.LensBlur
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -72,6 +74,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import com.example.BuildConfig
 import com.example.ui.components.CameraCaptureView
+import com.example.ui.components.ColorGradePanel
+import com.example.ui.components.SavePresetDialog
 import com.example.ui.components.UpdateCheckerModal
 import com.example.ui.components.WhatsNewModal
 import androidx.compose.material3.Button
@@ -81,10 +85,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
@@ -145,6 +149,15 @@ fun PhotoEditorScreen(
     var showPhotoPicker by remember { mutableStateOf(false) }
     var showCamera by remember { mutableStateOf(false) }
     var showWhatsNew by remember { mutableStateOf(false) }
+    var showSavePresetDialog by remember { mutableStateOf(false) }
+
+    val importPresetLutLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.importPresetOrLut(uri)
+        }
+    }
 
     val storagePermLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -227,7 +240,11 @@ fun PhotoEditorScreen(
 
                 val isBlurFocusMode = uiState.activeTab == EditorTab.ADJUST &&
                     uiState.activeAdjustCategory == com.example.model.AdjustCategory.EFFECTS &&
-                    uiState.adjustments.backgroundBlur > 0f
+                    (
+                        uiState.adjustments.backgroundBlur > 0f ||
+                            (uiState.adjustments.motionBlurIntensity > 0f &&
+                                uiState.adjustments.motionBlurTarget != com.example.model.MotionBlurTarget.SCENE)
+                    )
 
                 PhotoCanvas(
                     displayBitmap = uiState.displayBitmap,
@@ -463,7 +480,7 @@ fun PhotoEditorScreen(
                 Column(modifier = Modifier.fillMaxWidth()) {
                     val drawerHeight by animateDpAsState(
                         targetValue = when (uiState.activeTab) {
-                            EditorTab.CURVES -> 296.dp
+                            EditorTab.CURVES, EditorTab.COLOR_GRADE -> 296.dp
                             EditorTab.CROP -> 268.dp
                             EditorTab.RETOUCH -> if (
                                 uiState.isEraser ||
@@ -472,10 +489,16 @@ fun PhotoEditorScreen(
                             ) 280.dp else 232.dp
                             EditorTab.ADJUST -> if (
                                 uiState.activeAdjustCategory == com.example.model.AdjustCategory.EFFECTS &&
-                                uiState.adjustments.backgroundBlur > 0f
-                            ) 264.dp else 220.dp
+                                (uiState.adjustments.backgroundBlur > 0f || uiState.adjustments.motionBlurIntensity > 0f)
+                            ) 292.dp else 226.dp
                             EditorTab.HSL -> 215.dp
-                            EditorTab.FILTERS -> 185.dp
+                            EditorTab.FILTERS -> when {
+                                uiState.filterBrowserMode == com.example.model.FilterBrowserMode.FILTERS &&
+                                    uiState.activePreset != com.example.model.FilterPresets.NONE -> 236.dp
+                                uiState.filterBrowserMode == com.example.model.FilterBrowserMode.LUTS &&
+                                    uiState.activeLut != null -> 228.dp
+                                else -> 208.dp
+                            }
                         },
                         animationSpec = StudioMotion.PanelHeightSpring,
                         label = "tool_drawer_height"
@@ -508,7 +531,32 @@ fun PhotoEditorScreen(
                                 onIntensityChanged = { viewModel.setFilterIntensity(it) },
                                 lang = lang,
                                 hapticFeedback = hapticsEnabled,
-                                onEditFinished = { viewModel.finishContinuousEdit() }
+                                onEditFinished = { viewModel.finishContinuousEdit() },
+                                browserMode = uiState.filterBrowserMode,
+                                onSelectBrowserMode = { viewModel.setFilterBrowserMode(it) },
+                                customPresets = uiState.customPresets,
+                                availableLuts = uiState.availableLuts,
+                                activeLut = uiState.activeLut,
+                                lutIntensity = uiState.lutIntensity,
+                                onSelectLut = { viewModel.selectLut(it) },
+                                onLutIntensityChanged = { viewModel.setLutIntensity(it) },
+                                onApplyCustomPreset = { viewModel.applyCustomPreset(it) },
+                                onShareCustomPreset = { preset ->
+                                    viewModel.shareCustomPreset(preset) { intent ->
+                                        runCatching { context.startActivity(intent) }
+                                    }
+                                },
+                                onDeleteCustomPreset = { viewModel.deleteCustomPreset(it) },
+                                onShareLut = { lut ->
+                                    viewModel.shareLut(lut) { intent ->
+                                        runCatching { context.startActivity(intent) }
+                                    }
+                                },
+                                onDeleteLut = { viewModel.deleteCustomLut(it) },
+                                onSavePresetClick = { showSavePresetDialog = true },
+                                onImportPresetOrLutClick = {
+                                    importPresetLutLauncher.launch(arrayOf("*/*"))
+                                }
                             )
                             EditorTab.RETOUCH -> RetouchPanel(
                                 activeTool = uiState.activeRetouchTool,
@@ -533,6 +581,17 @@ fun PhotoEditorScreen(
                                 onAdjustmentsChanged = { viewModel.updateAdjustments(it) },
                                 onReset = { viewModel.resetAdjustments() },
                                 onAutoEnhance = { viewModel.autoEnhance() },
+                                lang = lang,
+                                hapticFeedback = hapticsEnabled,
+                                onEditFinished = { viewModel.finishContinuousEdit() }
+                            )
+                            EditorTab.COLOR_GRADE -> ColorGradePanel(
+                                colorGrade = uiState.colorGrade,
+                                onSelectTone = { viewModel.selectColorGradeTone(it) },
+                                onWheelChanged = { viewModel.updateActiveColorWheel(it) },
+                                onBalanceChanged = { viewModel.updateColorGradeBalance(it) },
+                                onResetWheel = { viewModel.resetActiveColorWheel() },
+                                onResetAll = { viewModel.resetAllColorGrade() },
                                 lang = lang,
                                 hapticFeedback = hapticsEnabled,
                                 onEditFinished = { viewModel.finishContinuousEdit() }
@@ -571,11 +630,12 @@ fun PhotoEditorScreen(
                         }
                     }
 
-                    // Main Category Tab Row
-                    TabRow(
+                    // Main Category Tab Row (Scrollable so all 7 tabs stay crisp with generous spacing)
+                    ScrollableTabRow(
                         selectedTabIndex = uiState.activeTab.ordinal,
                         containerColor = StudioSurfaceVariant,
                         contentColor = AccentCyan,
+                        edgePadding = 8.dp,
                         indicator = { tabPositions ->
                             TabRowDefaults.SecondaryIndicator(
                                 Modifier.tabIndicatorOffset(tabPositions[uiState.activeTab.ordinal]),
@@ -602,6 +662,7 @@ fun PhotoEditorScreen(
                                 EditorTab.FILTERS -> Icons.Default.Filter
                                 EditorTab.RETOUCH -> Icons.Default.AutoFixHigh
                                 EditorTab.ADJUST -> Icons.Default.Tune
+                                EditorTab.COLOR_GRADE -> Icons.Default.Palette
                                 EditorTab.CURVES -> Icons.Default.ShowChart
                                 EditorTab.HSL -> Icons.Default.Tune
                                 EditorTab.CROP -> Icons.Default.Crop
@@ -610,6 +671,7 @@ fun PhotoEditorScreen(
                                 EditorTab.FILTERS -> com.example.util.AppStrings.tabFiltersLabel(lang)
                                 EditorTab.RETOUCH -> com.example.util.AppStrings.tabRetouchLabel(lang)
                                 EditorTab.ADJUST -> com.example.util.AppStrings.tabAdjustLabel(lang)
+                                EditorTab.COLOR_GRADE -> com.example.util.AppStrings.tabColorGradeLabel(lang)
                                 EditorTab.CURVES -> com.example.util.AppStrings.tabCurvesLabel(lang)
                                 EditorTab.HSL -> com.example.util.AppStrings.tabHslLabel(lang)
                                 EditorTab.CROP -> com.example.util.AppStrings.tabCropLabel(lang)
@@ -624,7 +686,9 @@ fun PhotoEditorScreen(
                                         text = tabLabel,
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = tabTint
+                                        color = tabTint,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 },
                                 icon = {
@@ -648,6 +712,18 @@ fun PhotoEditorScreen(
                     }
                 }
             }
+        }
+
+        // Save Custom Preset Dialog
+        if (showSavePresetDialog) {
+            SavePresetDialog(
+                lang = lang,
+                onConfirm = { presetName ->
+                    showSavePresetDialog = false
+                    viewModel.saveCurrentAsCustomPreset(presetName)
+                },
+                onDismiss = { showSavePresetDialog = false }
+            )
         }
 
         // Photo Picker Modal

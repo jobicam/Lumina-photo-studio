@@ -273,7 +273,7 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.skinSmoothBannerTitle(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.9"))
+        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.10"))
         assertTrue(com.example.util.AppStrings.zoomIn(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomIn(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomOut(en).isNotBlank())
@@ -495,11 +495,11 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.statusCacheClearFailed(km).isNotBlank())
 
         val manifestJson = com.example.processing.AppUpdateChecker.buildVersionManifestJson(
-            versionCode = 15L,
-            versionName = "2.9.0"
+            versionCode = 16L,
+            versionName = "2.10.0"
         )
-        assertTrue(manifestJson.contains("transitions"))
-        assertTrue(manifestJson.contains("GitHub"))
+        assertTrue(manifestJson.contains("Motion Blur"))
+        assertTrue(manifestJson.contains("LUT"))
     }
 
     @Test
@@ -526,5 +526,97 @@ class PhotoEditorUnitTest {
         assertFalse(com.example.model.RetouchType.values().any { it.name == "BLEMISH" })
         val categories = com.example.model.RetouchType.values().map { it.category }.toSet()
         assertEquals(com.example.model.RetouchCategory.values().toSet(), categories)
+    }
+
+    @Test
+    fun testCubeLutParser_parseSerializeAndBuiltInLuts() {
+        val sampleCube = """
+            # Test 2x2x2 Swap R & B LUT
+            TITLE "Swap Red Blue"
+            LUT_3D_SIZE 2
+            DOMAIN_MIN 0.0 0.0 0.0
+            DOMAIN_MAX 1.0 1.0 1.0
+            0.0 0.0 0.0
+            0.0 0.0 1.0
+            0.0 1.0 0.0
+            0.0 1.0 1.0
+            1.0 0.0 0.0
+            1.0 0.0 1.0
+            1.0 1.0 0.0
+            1.0 1.0 1.0
+        """.trimIndent()
+
+        val parsed = com.example.processing.CubeLutParser.parseCubeLut(
+            id = "test_swap",
+            fallbackName = "Fallback",
+            content = sampleCube
+        )
+        assertEquals("Swap Red Blue", parsed.name)
+        assertEquals(2, parsed.size)
+        assertEquals(2 * 2 * 2 * 3, parsed.table.size)
+
+        val serialized = com.example.processing.CubeLutParser.serializeCubeLut(parsed)
+        val reparsed = com.example.processing.CubeLutParser.parseCubeLut(
+            id = "test_swap_2",
+            fallbackName = "Fallback",
+            content = serialized
+        )
+        assertEquals(parsed.name, reparsed.name)
+        assertEquals(parsed.size, reparsed.size)
+        for (i in parsed.table.indices) {
+            assertEquals(parsed.table[i], reparsed.table[i], 0.001f)
+        }
+
+        // Built-in cinema 3D LUTs
+        assertEquals(4, com.example.processing.BuiltInLuts.ALL.size)
+        com.example.processing.BuiltInLuts.ALL.forEach { lut ->
+            assertEquals(17, lut.size)
+            assertEquals(17 * 17 * 17 * 3, lut.table.size)
+            assertTrue(lut.isBuiltIn)
+        }
+    }
+
+    @Test
+    fun testColorGradeMotionBlurAndBilingualStrings() {
+        val baseAdj = AdjustmentState()
+        // Changing motion blur target/angle while intensity == 0 keeps isDefault == true
+        assertTrue(
+            baseAdj.copy(
+                motionBlurTarget = com.example.model.MotionBlurTarget.SUBJECT,
+                motionBlurAngle = 135f
+            ).isDefault
+        )
+        assertFalse(baseAdj.copy(motionBlurIntensity = 35f).isDefault)
+
+        var grade = com.example.model.ColorGradeState()
+        assertTrue(grade.isDefault)
+        assertFalse(grade.hasVisibleEffect)
+
+        grade = grade.updateActiveWheel(
+            com.example.model.ColorWheelValue(hueDegrees = 210f, saturation = 0.65f, luminance = -10f)
+        )
+        assertTrue(grade.hasVisibleEffect)
+        assertFalse(grade.isDefault)
+        val resetOne = grade.resetActiveWheel()
+        assertFalse(resetOne.hasVisibleEffect)
+
+        val en = com.example.model.AppLanguage.ENGLISH
+        val km = com.example.model.AppLanguage.KHMER
+        com.example.model.MotionBlurTarget.values().forEach { target ->
+            assertTrue(com.example.util.AppStrings.motionTargetLabel(target, en).isNotBlank())
+            assertTrue(com.example.util.AppStrings.motionTargetLabel(target, km).isNotBlank())
+        }
+        com.example.model.ColorGradeTone.values().forEach { tone ->
+            assertTrue(com.example.util.AppStrings.colorGradeToneLabel(tone, en).isNotBlank())
+            assertTrue(com.example.util.AppStrings.colorGradeToneLabel(tone, km).isNotBlank())
+        }
+        com.example.model.FilterBrowserMode.values().forEach { mode ->
+            assertTrue(com.example.util.AppStrings.filterBrowserLabel(mode, en).isNotBlank())
+            assertTrue(com.example.util.AppStrings.filterBrowserLabel(mode, km).isNotBlank())
+        }
+        assertTrue(com.example.util.AppStrings.sliderBokehBloom(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.sliderMotionTrail(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.sliderMotionAngle(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.tabColorGradeLabel(km).isNotBlank())
     }
 }

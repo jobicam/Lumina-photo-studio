@@ -19,6 +19,15 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class PhotoEditorRobolectricTest {
 
+    @org.junit.Before
+    fun resetFileProviderCacheForIsolatedRobolectricTempDirs() {
+        runCatching {
+            val field = androidx.core.content.FileProvider::class.java.getDeclaredField("sCache")
+            field.isAccessible = true
+            (field.get(null) as? MutableMap<*, *>)?.clear()
+        }
+    }
+
     @Test
     fun testCalculateHistogram_tracksRgbAndLuminance() {
         val bmp = Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888)
@@ -313,8 +322,8 @@ class PhotoEditorRobolectricTest {
         assertEquals("https://example.com/version.json", state.settings.updateFeedUrl)
         assertEquals("2.4.0", state.upgradedFromVersion)
         assertEquals(BuildConfig.VERSION_CODE, settingsPrefs.getInt("last_migrated_version_code", 0))
-        assertEquals("2.9.0", BuildConfig.VERSION_NAME)
-        assertEquals(15, BuildConfig.VERSION_CODE)
+        assertEquals("2.10.0", BuildConfig.VERSION_NAME)
+        assertEquals(16, BuildConfig.VERSION_CODE)
     }
 
     @Test
@@ -573,5 +582,181 @@ class PhotoEditorRobolectricTest {
         vm.selectRetouchTool(RetouchType.EYE_POP)
         assertEquals(RetouchType.EYE_POP, vm.uiState.value.activeRetouchTool)
         assertTrue("Selecting a retouch brush should exit Restore/Eraser mode", !vm.uiState.value.isEraser)
+    }
+
+    @Test
+    fun testCubeLut_trilinearApplicationShiftsColorsAccurately() {
+        val swapCube = """
+            TITLE "Red Blue Swap"
+            LUT_3D_SIZE 2
+            0.0 0.0 0.0
+            0.0 0.0 1.0
+            0.0 1.0 0.0
+            0.0 1.0 1.0
+            1.0 0.0 0.0
+            1.0 0.0 1.0
+            1.0 1.0 0.0
+            1.0 1.0 1.0
+        """.trimIndent()
+        val lut = com.example.processing.CubeLutParser.parseCubeLut("swap", "Swap", swapCube)
+
+        val bmp = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(Color.rgb(255, 40, 0))
+
+        val gradedFull = BitmapProcessor.renderAdjustments(
+            source = bmp,
+            adjustments = AdjustmentState(),
+            lut = lut,
+            lutIntensity = 1.0f
+        )
+        val pFull = gradedFull.getPixel(4, 4)
+        assertTrue("Full swap LUT should shift pure red to blue (R=${Color.red(pFull)}, B=${Color.blue(pFull)})", Color.blue(pFull) > 240 && Color.red(pFull) < 15)
+
+        val gradedHalf = BitmapProcessor.renderAdjustments(
+            source = bmp,
+            adjustments = AdjustmentState(),
+            lut = lut,
+            lutIntensity = 0.5f
+        )
+        val pHalf = gradedHalf.getPixel(4, 4)
+        assertTrue("50% intensity should blend red and blue (~128 each)", Color.red(pHalf) in 115..140 && Color.blue(pHalf) in 115..140)
+    }
+
+    @Test
+    fun testColorGrading_shiftsShadowsAndHighlightsIndependently() {
+        val bmp = Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 20) {
+            for (x in 0 until 20) {
+                // Dark neutral on left, bright neutral on right
+                val v = if (x < 10) 40 else 215
+                bmp.setPixel(x, y, Color.rgb(v, v, v))
+            }
+        }
+
+        val graded = BitmapProcessor.renderAdjustments(
+            source = bmp,
+            adjustments = AdjustmentState(),
+            colorGrade = com.example.model.ColorGradeState(
+                shadows = com.example.model.ColorWheelValue(hueDegrees = 230f, saturation = 0.85f),
+                highlights = com.example.model.ColorWheelValue(hueDegrees = 32f, saturation = 0.85f)
+            )
+        )
+
+        val shadowPixel = graded.getPixel(4, 10)
+        val highlightPixel = graded.getPixel(16, 10)
+        assertTrue("Blue shadow wheel should tint shadows blue (B=${Color.blue(shadowPixel)}, R=${Color.red(shadowPixel)})", Color.blue(shadowPixel) > Color.red(shadowPixel) + 15)
+        assertTrue("Warm highlight wheel should tint highlights amber/red (R=${Color.red(highlightPixel)}, B=${Color.blue(highlightPixel)})", Color.red(highlightPixel) > Color.blue(highlightPixel) + 15)
+    }
+
+    @Test
+    fun testMotionBlur_sceneBackgroundAndSubjectModes() {
+        val bmp = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(Color.rgb(20, 25, 35))
+        // Crisp 2px bright vertical line near corner (background) and at center (subject)
+        for (y in 5..25) {
+            bmp.setPixel(10, y, Color.rgb(245, 245, 245))
+            bmp.setPixel(11, y, Color.rgb(245, 245, 245))
+        }
+        for (y in 40..60) {
+            bmp.setPixel(50, y, Color.rgb(245, 245, 245))
+            bmp.setPixel(51, y, Color.rgb(245, 245, 245))
+        }
+
+        val sceneBlur = BitmapProcessor.renderAdjustments(
+            source = bmp,
+            adjustments = AdjustmentState(
+                motionBlurTarget = com.example.model.MotionBlurTarget.SCENE,
+                motionBlurIntensity = 85f,
+                motionBlurAngle = 0f
+            )
+        )
+        assertTrue("SCENE motion blur should soften background stripe peak", Color.red(sceneBlur.getPixel(10, 15)) < 180)
+        assertTrue("SCENE motion blur should soften center stripe peak", Color.red(sceneBlur.getPixel(50, 50)) < 180)
+
+        val bgBlur = BitmapProcessor.renderAdjustments(
+            source = bmp,
+            adjustments = AdjustmentState(
+                motionBlurTarget = com.example.model.MotionBlurTarget.BACKGROUND,
+                motionBlurIntensity = 85f,
+                motionBlurAngle = 0f,
+                blurFocusX = 0.5f,
+                blurFocusY = 0.5f,
+                blurFocusRadius = 0.22f
+            )
+        )
+        assertTrue("BACKGROUND motion blur should trail background stripe", Color.red(bgBlur.getPixel(10, 15)) < 180)
+        assertTrue("BACKGROUND motion blur should keep center subject sharp", Color.red(bgBlur.getPixel(50, 50)) > 235)
+
+        val subjectBlur = BitmapProcessor.renderAdjustments(
+            source = bmp,
+            adjustments = AdjustmentState(
+                motionBlurTarget = com.example.model.MotionBlurTarget.SUBJECT,
+                motionBlurIntensity = 85f,
+                motionBlurAngle = 0f,
+                blurFocusX = 0.5f,
+                blurFocusY = 0.5f,
+                blurFocusRadius = 0.22f
+            )
+        )
+        assertTrue("SUBJECT motion blur should keep outer background crisp", Color.red(subjectBlur.getPixel(10, 15)) > 235)
+        assertTrue("SUBJECT motion blur should trail center subject stripe", Color.red(subjectBlur.getPixel(50, 50)) < 180)
+    }
+
+    @Test
+    fun testPresetAndLutRepository_importShareAndViewModelUndoRedo() {
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+
+        // 1. Test importing .cube text via repository
+        val cubeText = com.example.processing.CubeLutParser.serializeCubeLut(com.example.processing.BuiltInLuts.TEAL_AMBER)
+        val lutImport = com.example.processing.PresetLutRepository.importFromText(app, "cinema_teal.cube", cubeText)
+        assertTrue(lutImport is com.example.processing.PresetLutImportResult.ImportedLut)
+        val importedLut = (lutImport as com.example.processing.PresetLutImportResult.ImportedLut).lut
+
+        // 2. Test building, exporting, sharing, and re-importing a custom preset JSON bundle
+        val preset = com.example.processing.PresetLutRepository.buildPresetFromState(
+            name = "Golden Cinema",
+            adjustments = AdjustmentState(contrast = 18f, motionBlurIntensity = 25f),
+            filterId = "original",
+            filterIntensity = 1f,
+            colorGrade = com.example.model.ColorGradeState(
+                shadows = com.example.model.ColorWheelValue(210f, 0.45f)
+            ),
+            curves = com.example.model.CurvesState(),
+            hsl = com.example.model.HslState(),
+            lutId = importedLut.id,
+            lutIntensity = 0.85f
+        )
+        val json = com.example.processing.PresetLutRepository.exportPresetToJson(preset, importedLut)
+        val presetImport = com.example.processing.PresetLutRepository.importFromText(app, "golden.lumina.json", json)
+        assertTrue(presetImport is com.example.processing.PresetLutImportResult.ImportedPreset)
+
+        // 3. Share Intents use FileProvider content:// URIs
+        val sharePresetChooser = com.example.processing.PresetLutRepository.createSharePresetIntent(
+            app, preset, listOf(importedLut)
+        )
+        @Suppress("DEPRECATION")
+        val presetStream = sharePresetChooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)
+            ?.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)
+        assertEquals("content", presetStream?.scheme)
+
+        val shareLutChooser = com.example.processing.PresetLutRepository.createShareLutIntent(app, importedLut)
+        @Suppress("DEPRECATION")
+        val lutStream = shareLutChooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)
+            ?.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)
+        assertEquals("content", lutStream?.scheme)
+
+        // 4. ViewModel undo/redo preserves colorGrade and activeLut
+        val vm = com.example.viewmodel.PhotoEditorViewModel(app)
+        val deadline = System.currentTimeMillis() + 5000L
+        while (vm.uiState.value.workingBitmap == null && System.currentTimeMillis() < deadline) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            Thread.sleep(20)
+        }
+        vm.selectLut(com.example.processing.BuiltInLuts.KODACHROME_64)
+        assertEquals(com.example.processing.BuiltInLuts.KODACHROME_64.id, vm.uiState.value.activeLut?.id)
+        vm.undo()
+        assertEquals(null, vm.uiState.value.activeLut)
+        vm.redo()
+        assertEquals(com.example.processing.BuiltInLuts.KODACHROME_64.id, vm.uiState.value.activeLut?.id)
     }
 }

@@ -176,7 +176,7 @@ object AppUpdateChecker {
     fun buildVersionManifestJson(
         versionCode: Long = BuildConfig.VERSION_CODE.toLong(),
         versionName: String = BuildConfig.VERSION_NAME,
-        releaseNotes: String = "Smooth layout transitions with directional screen slides, animated editor drawers, spring button press feedback, and built-in GitHub release update checking.",
+        releaseNotes: String = "Added Motion Blur (Scene/Background/Subject), optical Depth Lens Bokeh Blur, 3-way Colour Grade tonal wheels, and custom Presets & 3D .cube LUT import/sharing.",
         downloadUrl: String = ""
     ): String {
         val adapter = moshi.adapter<Map<String, Any>>(mapType).indent("  ")

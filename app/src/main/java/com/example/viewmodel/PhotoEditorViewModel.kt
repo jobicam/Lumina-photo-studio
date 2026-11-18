@@ -13,11 +13,16 @@ import com.example.R
 import com.example.model.AdjustCategory
 import com.example.model.AdjustmentState
 import com.example.model.AppLanguage
+import com.example.model.ColorGradeState
+import com.example.model.ColorGradeTone
+import com.example.model.ColorWheelValue
 import com.example.model.CropAspectRatio
 import com.example.model.CropRect
 import com.example.model.CurveChannel
 import com.example.model.CurvesState
+import com.example.model.CustomPreset
 import com.example.model.ExportFormat
+import com.example.model.FilterBrowserMode
 import com.example.model.FilterPreset
 import com.example.model.FilterPresets
 import com.example.model.FrameStyle
@@ -25,6 +30,8 @@ import com.example.model.HistogramData
 import com.example.model.HslChannelAdjustment
 import com.example.model.HslColorChannel
 import com.example.model.HslState
+import com.example.model.Lut3D
+import com.example.model.MotionBlurTarget
 import com.example.model.RetouchStroke
 import com.example.model.RetouchType
 import com.example.model.SavedImageInfo
@@ -35,7 +42,10 @@ import com.example.model.UpdateStatus
 import com.example.model.UserSettings
 import com.example.processing.AppUpdateChecker
 import com.example.processing.BitmapProcessor
+import com.example.processing.BuiltInLuts
 import com.example.processing.ImageExporter
+import com.example.processing.PresetLutImportResult
+import com.example.processing.PresetLutRepository
 import com.example.util.AppStrings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -60,6 +70,7 @@ enum class EditorTab(val label: String) {
     FILTERS("Filters"),
     RETOUCH("Retouch"),
     ADJUST("Adjust"),
+    COLOR_GRADE("Grade"),
     CURVES("Curves"),
     HSL("HSL"),
     CROP("Crop")
@@ -71,6 +82,9 @@ data class EditorHistorySnapshot(
     val adjustments: AdjustmentState,
     val activePreset: FilterPreset,
     val filterIntensity: Float,
+    val colorGrade: ColorGradeState,
+    val activeLut: Lut3D?,
+    val lutIntensity: Float,
     val curves: CurvesState,
     val hsl: HslState,
     val transform: TransformState,
@@ -86,11 +100,17 @@ data class EditorUiState(
     val displayBitmap: Bitmap? = null,
     val activeTab: EditorTab = EditorTab.FILTERS,
     val activeAdjustCategory: AdjustCategory = AdjustCategory.LIGHT,
+    val filterBrowserMode: FilterBrowserMode = FilterBrowserMode.FILTERS,
     val activePreset: FilterPreset = FilterPresets.NONE,
     val filterIntensity: Float = 1.0f,
     val adjustments: AdjustmentState = AdjustmentState(),
+    val colorGrade: ColorGradeState = ColorGradeState(),
     val curves: CurvesState = CurvesState(),
     val hsl: HslState = HslState(),
+    val customPresets: List<CustomPreset> = emptyList(),
+    val availableLuts: List<Lut3D> = emptyList(),
+    val activeLut: Lut3D? = null,
+    val lutIntensity: Float = 1.0f,
     val transform: TransformState = TransformState(),
     val selectedCropRatio: CropAspectRatio = CropAspectRatio.FREE,
     val pendingCropRect: CropRect = CropRect(),
@@ -147,12 +167,27 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
     private var continuousEditSnapshotted = false
 
     init {
-        // Pre-load default sample photo in the background, stay on Home screen
+        // Pre-load default sample photo, saved custom presets & 3D LUTs in background
         loadSamplePhoto(isPortrait = true, autoNavigate = false)
+        loadPresetsAndLuts()
         calculateCacheSize()
         val s = _uiState.value.settings
         if (s.autoCheckUpdates) {
             checkForUpdates(openDialog = false)
+        }
+    }
+
+    private fun loadPresetsAndLuts() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val ctx = getApplication<Application>()
+            val presets = PresetLutRepository.loadCustomPresets(ctx)
+            val luts = PresetLutRepository.loadAllLuts(ctx)
+            _uiState.update {
+                it.copy(
+                    customPresets = presets,
+                    availableLuts = luts
+                )
+            }
         }
     }
 
@@ -478,6 +513,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 activePreset = initialPreset,
                 filterIntensity = 1.0f,
                 adjustments = AdjustmentState(),
+                colorGrade = ColorGradeState(),
+                activeLut = null,
+                lutIntensity = 1.0f,
                 curves = CurvesState(),
                 hsl = HslState(),
                 transform = TransformState(),
@@ -515,6 +553,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             adjustments = state.adjustments,
             activePreset = state.activePreset,
             filterIntensity = state.filterIntensity,
+            colorGrade = state.colorGrade,
+            activeLut = state.activeLut,
+            lutIntensity = state.lutIntensity,
             curves = state.curves,
             hsl = state.hsl,
             transform = state.transform,
@@ -541,6 +582,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             adjustments = currentState.adjustments,
             activePreset = currentState.activePreset,
             filterIntensity = currentState.filterIntensity,
+            colorGrade = currentState.colorGrade,
+            activeLut = currentState.activeLut,
+            lutIntensity = currentState.lutIntensity,
             curves = currentState.curves,
             hsl = currentState.hsl,
             transform = currentState.transform,
@@ -559,6 +603,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 adjustments = previous.adjustments,
                 activePreset = previous.activePreset,
                 filterIntensity = previous.filterIntensity,
+                colorGrade = previous.colorGrade,
+                activeLut = previous.activeLut,
+                lutIntensity = previous.lutIntensity,
                 curves = previous.curves,
                 hsl = previous.hsl,
                 transform = previous.transform,
@@ -585,6 +632,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             adjustments = currentState.adjustments,
             activePreset = currentState.activePreset,
             filterIntensity = currentState.filterIntensity,
+            colorGrade = currentState.colorGrade,
+            activeLut = currentState.activeLut,
+            lutIntensity = currentState.lutIntensity,
             curves = currentState.curves,
             hsl = currentState.hsl,
             transform = currentState.transform,
@@ -603,6 +653,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 adjustments = next.adjustments,
                 activePreset = next.activePreset,
                 filterIntensity = next.filterIntensity,
+                colorGrade = next.colorGrade,
+                activeLut = next.activeLut,
+                lutIntensity = next.lutIntensity,
                 curves = next.curves,
                 hsl = next.hsl,
                 transform = next.transform,
@@ -626,7 +679,12 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    // --- FILTERS ---
+    // --- FILTERS, CUSTOM PRESETS & 3D LUTS ---
+    fun setFilterBrowserMode(mode: FilterBrowserMode) {
+        continuousEditSnapshotted = false
+        _uiState.update { it.copy(filterBrowserMode = mode) }
+    }
+
     fun selectFilter(preset: FilterPreset) {
         continuousEditSnapshotted = false
         pushHistory()
@@ -638,6 +696,194 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         beginContinuousEdit()
         _uiState.update { it.copy(filterIntensity = intensity) }
         triggerRender()
+    }
+
+    fun selectLut(lut: Lut3D?) {
+        continuousEditSnapshotted = false
+        val lang = _uiState.value.settings.appLanguage
+        pushHistory()
+        _uiState.update {
+            it.copy(
+                activeLut = lut,
+                statusMessage = lut?.let { l -> AppStrings.statusLutApplied(l.name, lang) }
+            )
+        }
+        triggerRender()
+    }
+
+    fun setLutIntensity(intensity: Float) {
+        beginContinuousEdit()
+        _uiState.update { it.copy(lutIntensity = intensity.coerceIn(0f, 1f)) }
+        triggerRender()
+    }
+
+    fun saveCurrentAsCustomPreset(name: String) {
+        val state = _uiState.value
+        val lang = state.settings.appLanguage
+        val newPreset = PresetLutRepository.buildPresetFromState(
+            name = name,
+            adjustments = state.adjustments,
+            filterId = state.activePreset.id,
+            filterIntensity = state.filterIntensity,
+            colorGrade = state.colorGrade,
+            curves = state.curves,
+            hsl = state.hsl,
+            lutId = state.activeLut?.id,
+            lutIntensity = state.lutIntensity
+        )
+        viewModelScope.launch {
+            val updated = withContext(Dispatchers.IO) {
+                PresetLutRepository.saveCustomPreset(getApplication(), newPreset)
+            }
+            _uiState.update {
+                it.copy(
+                    customPresets = updated,
+                    filterBrowserMode = FilterBrowserMode.PRESETS,
+                    statusMessage = AppStrings.statusPresetSaved(newPreset.name, lang)
+                )
+            }
+        }
+    }
+
+    fun applyCustomPreset(preset: CustomPreset) {
+        continuousEditSnapshotted = false
+        pushHistory()
+        val lang = _uiState.value.settings.appLanguage
+        val matchedFilter = FilterPresets.ALL_PRESETS.firstOrNull { it.id == preset.filterId } ?: FilterPresets.NONE
+        val matchedLut = preset.lutId?.let { id ->
+            (_uiState.value.availableLuts + BuiltInLuts.ALL).firstOrNull { it.id == id }
+        }
+        _uiState.update {
+            it.copy(
+                adjustments = preset.adjustments,
+                activePreset = matchedFilter,
+                filterIntensity = preset.filterIntensity,
+                colorGrade = preset.colorGrade,
+                curves = preset.curves,
+                hsl = preset.hsl,
+                activeLut = matchedLut,
+                lutIntensity = preset.lutIntensity,
+                statusMessage = AppStrings.statusPresetApplied(preset.name, lang)
+            )
+        }
+        triggerRender()
+    }
+
+    fun deleteCustomPreset(presetId: String) {
+        val lang = _uiState.value.settings.appLanguage
+        viewModelScope.launch {
+            val updated = withContext(Dispatchers.IO) {
+                PresetLutRepository.deleteCustomPreset(getApplication(), presetId)
+            }
+            _uiState.update {
+                it.copy(
+                    customPresets = updated,
+                    statusMessage = AppStrings.statusPresetDeleted(lang)
+                )
+            }
+        }
+    }
+
+    fun deleteCustomLut(lutId: String) {
+        val lang = _uiState.value.settings.appLanguage
+        viewModelScope.launch {
+            val updated = withContext(Dispatchers.IO) {
+                PresetLutRepository.deleteCustomLut(getApplication(), lutId)
+            }
+            val clearedActive = _uiState.value.activeLut?.id == lutId
+            _uiState.update {
+                it.copy(
+                    availableLuts = updated,
+                    activeLut = if (clearedActive) null else it.activeLut,
+                    statusMessage = AppStrings.statusLutDeleted(lang)
+                )
+            }
+            if (clearedActive) triggerRender()
+        }
+    }
+
+    fun importPresetOrLut(uri: Uri) {
+        val lang = _uiState.value.settings.appLanguage
+        viewModelScope.launch {
+            _uiState.update { it.copy(isProcessing = true) }
+            val result = withContext(Dispatchers.IO) {
+                PresetLutRepository.importFromUri(getApplication(), uri)
+            }
+            when (result) {
+                is PresetLutImportResult.ImportedLut -> {
+                    val luts = withContext(Dispatchers.IO) { PresetLutRepository.loadAllLuts(getApplication()) }
+                    pushHistory()
+                    _uiState.update {
+                        it.copy(
+                            isProcessing = false,
+                            availableLuts = luts,
+                            activeLut = result.lut,
+                            lutIntensity = 1.0f,
+                            filterBrowserMode = FilterBrowserMode.LUTS,
+                            statusMessage = AppStrings.statusLutImported(result.lut.name, lang)
+                        )
+                    }
+                    triggerRender()
+                }
+                is PresetLutImportResult.ImportedPreset -> {
+                    val ctx = getApplication<Application>()
+                    val presets = withContext(Dispatchers.IO) { PresetLutRepository.loadCustomPresets(ctx) }
+                    val luts = withContext(Dispatchers.IO) { PresetLutRepository.loadAllLuts(ctx) }
+                    _uiState.update {
+                        it.copy(
+                            isProcessing = false,
+                            customPresets = presets,
+                            availableLuts = luts,
+                            filterBrowserMode = FilterBrowserMode.PRESETS,
+                            statusMessage = AppStrings.statusPresetImported(result.preset.name, lang)
+                        )
+                    }
+                    applyCustomPreset(result.preset)
+                }
+                is PresetLutImportResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isProcessing = false,
+                            statusMessage = AppStrings.statusImportFailed(result.message, lang)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun shareCustomPreset(preset: CustomPreset, onIntentReady: (android.content.Intent) -> Unit) {
+        val lang = _uiState.value.settings.appLanguage
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    PresetLutRepository.createSharePresetIntent(
+                        context = getApplication(),
+                        preset = preset,
+                        allLuts = _uiState.value.availableLuts
+                    )
+                }
+            }.onSuccess { intent ->
+                onIntentReady(intent)
+            }.onFailure { err ->
+                _uiState.update { it.copy(statusMessage = AppStrings.statusShareFailed(lang, err.localizedMessage)) }
+            }
+        }
+    }
+
+    fun shareLut(lut: Lut3D, onIntentReady: (android.content.Intent) -> Unit) {
+        val lang = _uiState.value.settings.appLanguage
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    PresetLutRepository.createShareLutIntent(getApplication(), lut)
+                }
+            }.onSuccess { intent ->
+                onIntentReady(intent)
+            }.onFailure { err ->
+                _uiState.update { it.copy(statusMessage = AppStrings.statusShareFailed(lang, err.localizedMessage)) }
+            }
+        }
     }
 
     // --- ADJUSTMENTS ---
@@ -740,6 +986,40 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         if (_uiState.value.curves.getActiveCurve().isLinear()) return
         pushHistory()
         _uiState.update { it.copy(curves = it.curves.resetActiveCurve()) }
+        triggerRender()
+    }
+
+    // --- COLOUR GRADE (3-Way Tonal Wheels) ---
+    fun selectColorGradeTone(tone: ColorGradeTone) {
+        continuousEditSnapshotted = false
+        _uiState.update { it.copy(colorGrade = it.colorGrade.copy(activeTone = tone)) }
+    }
+
+    fun updateActiveColorWheel(wheelValue: ColorWheelValue) {
+        beginContinuousEdit()
+        _uiState.update { it.copy(colorGrade = it.colorGrade.updateActiveWheel(wheelValue)) }
+        triggerRender()
+    }
+
+    fun updateColorGradeBalance(balance: Float) {
+        beginContinuousEdit()
+        _uiState.update { it.copy(colorGrade = it.colorGrade.copy(balance = balance.coerceIn(-100f, 100f))) }
+        triggerRender()
+    }
+
+    fun resetActiveColorWheel() {
+        continuousEditSnapshotted = false
+        if (_uiState.value.colorGrade.getActiveWheel().isDefault) return
+        pushHistory()
+        _uiState.update { it.copy(colorGrade = it.colorGrade.resetActiveWheel()) }
+        triggerRender()
+    }
+
+    fun resetAllColorGrade() {
+        continuousEditSnapshotted = false
+        if (_uiState.value.colorGrade.isDefault) return
+        pushHistory()
+        _uiState.update { it.copy(colorGrade = ColorGradeState(activeTone = it.colorGrade.activeTone)) }
         triggerRender()
     }
 
@@ -1048,7 +1328,10 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                     filterIntensity = state.filterIntensity,
                     curves = state.curves,
                     hsl = state.hsl,
-                    frameStyle = state.activeFrame
+                    frameStyle = state.activeFrame,
+                    colorGrade = state.colorGrade,
+                    lut = state.activeLut,
+                    lutIntensity = state.lutIntensity
                 )
                 ensureActive()
                 val h = BitmapProcessor.calculateHistogram(r)

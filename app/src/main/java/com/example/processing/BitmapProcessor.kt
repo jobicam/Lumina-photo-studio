@@ -13,6 +13,7 @@ import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.Shader
 import com.example.model.AdjustmentState
+import com.example.model.ColorGradeState
 import com.example.model.CropAspectRatio
 import com.example.model.CurvesState
 import com.example.model.FilterPreset
@@ -21,6 +22,7 @@ import com.example.model.FrameStyle
 import com.example.model.HslColorChannel
 import com.example.model.HistogramData
 import com.example.model.HslState
+import com.example.model.Lut3D
 import com.example.model.RetouchStroke
 import com.example.model.RetouchType
 import com.example.model.StrokePoint
@@ -52,7 +54,8 @@ object BitmapProcessor {
 
     /**
      * Applies full adjustment pipeline:
-     * Filter Preset -> Adjustments (Exposure, Contrast, Warmth, Sat, etc.) -> Curves -> HSL -> Vignette & Grain.
+     * Filter Preset -> Adjustments -> Curves & HSL -> Color Grade -> 3D LUT -> Sharpness ->
+     * Depth Lens Bokeh Blur -> Motion Blur -> Soft Glow -> Vignette -> Grain -> Frame.
      */
     fun renderAdjustments(
         source: Bitmap,
@@ -61,7 +64,10 @@ object BitmapProcessor {
         filterIntensity: Float = 1.0f,
         curves: CurvesState = CurvesState(),
         hsl: HslState = HslState(),
-        frameStyle: FrameStyle = FrameStyle.NONE
+        frameStyle: FrameStyle = FrameStyle.NONE,
+        colorGrade: ColorGradeState = ColorGradeState(),
+        lut: Lut3D? = null,
+        lutIntensity: Float = 1.0f
     ): Bitmap {
         val width = source.width
         val height = source.height
@@ -78,20 +84,45 @@ object BitmapProcessor {
         // 2. Tonal Adjustments (Highlights, Shadows, Whites, Blacks, Clarity), Curves & HSL
         applyToneCurvesAndHslInPlace(output, adjustments, curves, hsl)
 
+        // 2b. 3-Way Tonal Color Grade (Shadows / Midtones / Highlights)
+        if (colorGrade.hasVisibleEffect) {
+            EffectsProcessor.applyColorGradingInPlace(output, colorGrade)
+        }
+
+        // 2c. 3D LUT (.cube) trilinear transform
+        if (lut != null && lutIntensity > 0.005f) {
+            CubeLutParser.applyLut3DInPlace(output, lut, lutIntensity)
+        }
+
         // 3. Sharpness
         if (adjustments.sharpness > 0f) {
             applySharpnessInPlace(output, adjustments.sharpness)
         }
 
-        // 3b. Portrait / Radial Background Blur
+        // 3b. Optical Depth Lens Blur (Aperture Disc Bokeh + Specular Bloom)
         if (adjustments.backgroundBlur > 0f) {
-            applyBackgroundBlurInPlace(
+            EffectsProcessor.applyDepthLensBlurInPlace(
                 bitmap = output,
                 blurStrength = adjustments.backgroundBlur,
+                bokehBloom = adjustments.lensBokehBloom,
                 focusX = adjustments.blurFocusX,
                 focusY = adjustments.blurFocusY,
                 focusRadius = adjustments.blurFocusRadius,
                 protectSubject = adjustments.blurProtectSubject
+            )
+        }
+
+        // 3c. Dynamic Motion Blur (Scene / Background / Subject)
+        if (adjustments.motionBlurIntensity > 0f) {
+            EffectsProcessor.applyMotionBlurInPlace(
+                bitmap = output,
+                intensity = adjustments.motionBlurIntensity,
+                angleDegrees = adjustments.motionBlurAngle,
+                target = adjustments.motionBlurTarget,
+                focusX = adjustments.blurFocusX,
+                focusY = adjustments.blurFocusY,
+                focusRadius = adjustments.blurFocusRadius,
+                protectSkinSubject = adjustments.blurProtectSubject
             )
         }
 
@@ -330,13 +361,15 @@ object BitmapProcessor {
         focusX: Float = 0.50f,
         focusY: Float = 0.42f,
         focusRadius: Float = 0.32f,
-        protectSubject: Boolean = true
+        protectSubject: Boolean = true,
+        bokehBloom: Float = 25f
     ): Bitmap {
         val out = source.copy(Bitmap.Config.ARGB_8888, true)
         if (blurStrength > 0f) {
-            applyBackgroundBlurInPlace(
+            EffectsProcessor.applyDepthLensBlurInPlace(
                 bitmap = out,
                 blurStrength = blurStrength,
+                bokehBloom = bokehBloom,
                 focusX = focusX,
                 focusY = focusY,
                 focusRadius = focusRadius,

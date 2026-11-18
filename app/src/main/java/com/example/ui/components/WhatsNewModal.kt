@@ -37,7 +37,10 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LensBlur
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.MotionPhotosOn
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.ShowChart
@@ -218,7 +221,7 @@ fun WhatsNewModal(
                 }
             }
 
-            // Section 1: CURRENT VERSION HIGHLIGHT (v2.9.0)
+            // Section 1: CURRENT VERSION HIGHLIGHT (v2.10.0)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -236,7 +239,7 @@ fun WhatsNewModal(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ចលនារលូន & ប្រព័ន្ធអាប់ដេត" else "What's New in v$versionName — Smooth Studio Motion",
+                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ពណ៌ភាពយន្ត, Bokeh & LUTs" else "What's New in v$versionName — Pro Optics & Colour Studio",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = AccentCyan
@@ -247,33 +250,33 @@ fun WhatsNewModal(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 WhatsNewItem(
-                    icon = Icons.Default.AutoAwesome,
+                    icon = Icons.Default.MotionPhotosOn,
                     iconTint = AccentCyan,
-                    title = if (isKhmer) "ចលនាផ្លាស់ប្តូរអេក្រង់រលូន & Spring Physics" else "Smooth Layout Transitions & Spring Physics",
+                    title = if (isKhmer) "Motion Blur (ទាំងមូល, ផ្ទៃក្រោយ ឬ ប្រធានបទ)" else "Dynamic Motion Blur & Optical Depth Bokeh",
                     description = if (isKhmer)
-                        "ការផ្លាស់ប្តូរអេក្រង់តាមទិសដៅ ការបើក-បិទថតឧបករណ៍ដោយរលូន និងចលនាតុបតែងលើផ្ទាំងកែរូប។"
+                        "បន្ថែមចលនាតាមទិសដៅលើទិដ្ឋភាពទាំងមូល ផ្ទៃក្រោយ ឬប្រធានបទ រួមជាមួយពន្លឺ Depth Lens Bokeh ធម្មជាតិ។"
                     else
-                        "Fluid directional screen slides, animated editor tool drawers, expanding controls, and animated tab indicators."
+                        "Directional motion trails targeting Scene, Background, or Subject alongside realistic circular Depth Lens Bokeh & highlight bloom."
                 )
 
                 WhatsNewItem(
-                    icon = Icons.Default.TouchApp,
+                    icon = Icons.Default.Palette,
                     iconTint = AccentPink,
-                    title = if (isKhmer) "ចលនាចុចប៊ូតុងឆ្លើយតបរហ័ស & ពង្រីករលូន" else "Tactile Button Press Animations & Zoom Springs",
+                    title = if (isKhmer) "Colour Grade — កង់ពណ៌ភាពយន្ត ៣ កម្រិត" else "3-Way Colour Grade Tonal Wheels",
                     description = if (isKhmer)
-                        "ប្រតិកម្មលោតស្រាលៗពេលចុចលើប៊ូតុង កាតតម្រង ជក់កែមុខ និងការពង្រីករូបភាព។"
+                        "កែពណ៌បែបភាពយន្តជាមួយកង់ពណ៌ Shadows, Midtones និង Highlights ព្រមទាំងតុល្យភាពពន្លឺ។"
                     else
-                        "Responsive spring bounce feedback across every studio button, brush tile, filter card, and canvas zoom step."
+                        "Style photos cinematically with interactive Shadows, Midtones & Highlights color wheels, luminance, and tonal balance."
                 )
 
                 WhatsNewItem(
-                    icon = Icons.Default.SystemUpdate,
+                    icon = Icons.Default.LensBlur,
                     iconTint = AccentPurple,
-                    title = if (isKhmer) "ប្រព័ន្ធពិនិត្យកំណែថ្មី GitHub ភ្ជាប់មកស្រេច" else "Built-In Official GitHub Release Checker",
+                    title = if (isKhmer) "Presets & 3D LUTs (.cube / .json)" else "Custom Presets & 3D LUTs (.cube / .json)",
                     description = if (isKhmer)
-                        "ពិនិត្យរកកំណែថ្មីដោយចុចតែម្តងតាមតំណ GitHub ផ្លូវការ ដោយមិនបាច់បញ្ចូលតំណដោយដៃ។"
+                        "រក្សាទុក Preset ផ្ទាល់ខ្លួន នាំចូល 3D LUT (.cube) និងចែករំលែកម៉ូដពណ៌ទៅមិត្តភក្តិ។"
                     else
-                        "One-tap update checks locked to the official Lumina Photo GitHub releases feed with zero manual URL setup."
+                        "Save your complete edit stack as custom presets, apply built-in or imported .cube 3D LUTs, and share looks with others."
                 )
             }
 
@@ -329,6 +332,13 @@ fun WhatsNewModal(
                 Column {
                     Spacer(modifier = Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WhatsNewItem(
+                            icon = Icons.Default.TouchApp,
+                            iconTint = AccentCyan,
+                            title = "v2.9.0: Smooth Layout Transitions & Press Physics",
+                            description = "Directional screen slides, animated editor drawers, spring button feedback, and built-in GitHub release checks."
+                        )
+
                         WhatsNewItem(
                             icon = Icons.Default.AutoFixHigh,
                             iconTint = AccentPink,

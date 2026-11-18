@@ -38,7 +38,7 @@ object AppStrings {
     fun portraitBadge(lang: AppLanguage) = if (isKhmer(lang)) "មុខ & ស្បែក" else "Face & Skin"
     fun mountainSunset(lang: AppLanguage) = if (isKhmer(lang)) "ថ្ងៃលិចលើភ្នំ" else "Mountain Sunset"
     fun sunsetBadge(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ & តម្រង" else "Color & Filter"
-    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.9" else "STUDIO CAPABILITIES v2.9"
+    fun studioCapabilities(lang: AppLanguage) = if (isKhmer(lang)) "សមត្ថភាពស្ទូឌីយោ v2.10" else "STUDIO CAPABILITIES v2.10"
 
     // Feature Banners
     fun skinSmoothBannerTitle(lang: AppLanguage) = if (isKhmer(lang)) "រលោងស្បែក Gaussian & រក្សាភាពលម្អិត" else "Gaussian Mask Skin Smoothing"
@@ -256,18 +256,63 @@ object AppStrings {
     fun sliderVibrance(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ស្រស់ថ្លា" else "Vibrance"
     fun sliderClarity(lang: AppLanguage) = if (isKhmer(lang)) "ភាពច្បាស់ល្អិត" else "Clarity"
     fun sliderSharpness(lang: AppLanguage) = if (isKhmer(lang)) "ភាពមុតស្រួច" else "Sharpness"
-    fun sliderBackgroundBlur(lang: AppLanguage) = if (isKhmer(lang)) "ព្រាលផ្ទៃក្រោយ" else "Blur BG"
+    fun sliderBackgroundBlur(lang: AppLanguage) = if (isKhmer(lang)) "ព្រាលផ្ទៃក្រោយ (Depth)" else "Depth Blur"
+    fun sliderBokehBloom(lang: AppLanguage) = if (isKhmer(lang)) "ពន្លឺ Bokeh" else "Bokeh Bloom"
     fun sliderFocusSize(lang: AppLanguage) = if (isKhmer(lang)) "ទំហំផ្ដោត" else "Focus Size"
     fun protectSubjectLabel(lang: AppLanguage) = if (isKhmer(lang)) "រក្សាប្រធានបទច្បាស់" else "Protect Subject"
     fun blurFocusHint(lang: AppLanguage) = if (isKhmer(lang)) "ចុចលើរូបដើម្បីប្ដូរចំណុចផ្ដោត" else "Tap photo to move focus"
     fun quickBlurBg(lang: AppLanguage) = if (isKhmer(lang)) "ព្រាលផ្ទៃក្រោយ" else "Blur BG"
-    fun statusBackgroundBlurEnabled(lang: AppLanguage) = if (isKhmer(lang)) "បានបើកភាពព្រាលផ្ទៃខាងក្រោយ — ចុចលើរូបដើម្បីកំណត់ចំណុចផ្ដោត" else "Background blur active — tap photo to set focus point"
+    fun statusBackgroundBlurEnabled(lang: AppLanguage) = if (isKhmer(lang)) "បានបើកភាពព្រាលផ្ទៃខាងក្រោយ — ចុចលើរូបដើម្បីកំណត់ចំណុចផ្ដោត" else "Depth lens blur active — tap photo to set focus point"
+    fun depthLensBlurSection(lang: AppLanguage) = if (isKhmer(lang)) "ភាពព្រាលកែវលែន (Depth Bokeh)" else "Depth Lens Blur"
+    fun motionBlurSection(lang: AppLanguage) = if (isKhmer(lang)) "ភាពព្រាលចលនា (Motion Blur)" else "Motion Blur"
+    fun motionTargetLabel(target: com.example.model.MotionBlurTarget, lang: AppLanguage): String = when (target) {
+        com.example.model.MotionBlurTarget.SCENE -> if (isKhmer(lang)) "ទាំងមូល" else "Scene"
+        com.example.model.MotionBlurTarget.BACKGROUND -> if (isKhmer(lang)) "ផ្ទៃក្រោយ" else "Background"
+        com.example.model.MotionBlurTarget.SUBJECT -> if (isKhmer(lang)) "ប្រធានបទ" else "Subject"
+    }
+    fun sliderMotionTrail(lang: AppLanguage) = if (isKhmer(lang)) "កម្លាំងចលនា" else "Motion Trail"
+    fun sliderMotionAngle(lang: AppLanguage) = if (isKhmer(lang)) "ទិសដៅចលនា" else "Direction"
     fun sliderSoftGlow(lang: AppLanguage) = if (isKhmer(lang)) "ពន្លឺភ្លឺស្រទន់" else "Soft Glow"
     fun sliderVignette(lang: AppLanguage) = if (isKhmer(lang)) "ស្រមោលគែម" else "Vignette"
     fun sliderGrain(lang: AppLanguage) = if (isKhmer(lang)) "គ្រាប់ហ្វីល" else "Film Grain"
     fun sliderFade(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ស្លេកហ្វីល" else "Film Fade"
     fun sliderHue(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ Hue" else "Hue"
     fun sliderLuminance(lang: AppLanguage) = if (isKhmer(lang)) "ពន្លឺ" else "Luminance"
+
+    // --- Colour Grade (3-Way Tonal Wheels) ---
+    fun tabColorGradeLabel(lang: AppLanguage) = if (isKhmer(lang)) "ពណ៌ភាពយន្ត" else "Grade"
+    fun colorGradeToneLabel(tone: com.example.model.ColorGradeTone, lang: AppLanguage): String = when (tone) {
+        com.example.model.ColorGradeTone.SHADOWS -> if (isKhmer(lang)) "ស្រមោល" else "Shadows"
+        com.example.model.ColorGradeTone.MIDTONES -> if (isKhmer(lang)) "ពាក់កណ្ដាល" else "Midtones"
+        com.example.model.ColorGradeTone.HIGHLIGHTS -> if (isKhmer(lang)) "ពន្លឺខ្ពស់" else "Highlights"
+    }
+    fun colorGradeBalance(lang: AppLanguage) = if (isKhmer(lang)) "តុល្យភាព" else "Balance"
+    fun colorGradeWheelHint(lang: AppLanguage) = if (isKhmer(lang)) "អូសកង់ពណ៌ដើម្បីបន្ថែមពណ៌ភាពយន្ត" else "Drag wheel to tint tonal range • Tap Reset to center"
+    fun resetWheelLabel(lang: AppLanguage) = if (isKhmer(lang)) "សម្អាតកង់" else "Reset Wheel"
+    fun resetAllGradeLabel(lang: AppLanguage) = if (isKhmer(lang)) "សម្អាតទាំងអស់" else "Reset All"
+
+    // --- Presets & 3D LUTs ---
+    fun filterBrowserLabel(mode: com.example.model.FilterBrowserMode, lang: AppLanguage): String = when (mode) {
+        com.example.model.FilterBrowserMode.FILTERS -> if (isKhmer(lang)) "តម្រង" else "Filters"
+        com.example.model.FilterBrowserMode.PRESETS -> if (isKhmer(lang)) "Presets របស់ខ្ញុំ" else "My Presets"
+        com.example.model.FilterBrowserMode.LUTS -> if (isKhmer(lang)) "3D LUTs" else "3D LUTs"
+    }
+    fun savePresetBtn(lang: AppLanguage) = if (isKhmer(lang)) "+ រក្សាទុក" else "+ Save"
+    fun importPresetLutBtn(lang: AppLanguage) = if (isKhmer(lang)) "នាំចូល .cube/.json" else "Import"
+    fun savePresetDialogTitle(lang: AppLanguage) = if (isKhmer(lang)) "រក្សាទុកជា Preset ផ្ទាល់ខ្លួន" else "Save Custom Preset"
+    fun presetNamePlaceholder(lang: AppLanguage) = if (isKhmer(lang)) "ឈ្មោះ Preset (ឧ. Golden Film)" else "Preset name (e.g. Golden Film)"
+    fun noneLutLabel(lang: AppLanguage) = if (isKhmer(lang)) "គ្មាន LUT" else "None"
+    fun emptyPresetsHint(lang: AppLanguage) = if (isKhmer(lang)) "រក្សាទុកការកែសម្រួលបច្ចុប្បន្ន ឬនាំចូល .json" else "Save your current look or import a shared .json preset"
+    fun shareItemLabel(lang: AppLanguage) = if (isKhmer(lang)) "ចែករំលែក" else "Share"
+    fun deleteItemLabel(lang: AppLanguage) = if (isKhmer(lang)) "លុប" else "Delete"
+    fun statusPresetSaved(name: String, lang: AppLanguage) = if (isKhmer(lang)) "បានរក្សាទុក Preset៖ $name" else "Saved preset: $name"
+    fun statusPresetApplied(name: String, lang: AppLanguage) = if (isKhmer(lang)) "បានអនុវត្ត Preset៖ $name" else "Applied preset: $name"
+    fun statusPresetDeleted(lang: AppLanguage) = if (isKhmer(lang)) "បានលុប Preset" else "Preset deleted"
+    fun statusLutApplied(name: String, lang: AppLanguage) = if (isKhmer(lang)) "បានប្រើ 3D LUT៖ $name" else "3D LUT active: $name"
+    fun statusLutImported(name: String, lang: AppLanguage) = if (isKhmer(lang)) "បាននាំចូល 3D LUT៖ $name" else "Imported 3D LUT: $name"
+    fun statusPresetImported(name: String, lang: AppLanguage) = if (isKhmer(lang)) "បាននាំចូល Preset៖ $name" else "Imported preset: $name"
+    fun statusLutDeleted(lang: AppLanguage) = if (isKhmer(lang)) "បានលុប 3D LUT" else "3D LUT deleted"
+    fun statusImportFailed(reason: String, lang: AppLanguage) = if (isKhmer(lang)) "នាំចូលបរាជ័យ៖ $reason" else "Import failed: $reason"
 
     // --- HSL Channels ---
     fun hslChannel(ch: com.example.model.HslColorChannel, lang: AppLanguage): String = when (ch) {

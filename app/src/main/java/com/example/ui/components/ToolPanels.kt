@@ -79,6 +79,8 @@ import com.example.model.CropAspectRatio
 import com.example.model.CropRect
 import com.example.model.CurveChannel
 import com.example.model.CurvesState
+import com.example.model.CustomPreset
+import com.example.model.FilterBrowserMode
 import com.example.model.FilterCategory
 import com.example.model.FilterPreset
 import com.example.model.FilterPresets
@@ -87,6 +89,7 @@ import com.example.model.HistogramData
 import com.example.model.HslChannelAdjustment
 import com.example.model.HslColorChannel
 import com.example.model.HslState
+import com.example.model.Lut3D
 import com.example.model.SingleCurve
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
@@ -98,7 +101,7 @@ import com.example.ui.theme.TextSecondary
 import com.example.util.AppStrings
 
 // -------------------------------------------------------------
-// 1. FILTERS PANEL
+// 1. FILTERS, PRESETS & 3D LUTS PANEL
 // -------------------------------------------------------------
 @Composable
 fun FiltersPanel(
@@ -109,7 +112,22 @@ fun FiltersPanel(
     modifier: Modifier = Modifier,
     lang: AppLanguage = AppLanguage.SYSTEM,
     hapticFeedback: Boolean = true,
-    onEditFinished: () -> Unit = {}
+    onEditFinished: () -> Unit = {},
+    browserMode: FilterBrowserMode = FilterBrowserMode.FILTERS,
+    onSelectBrowserMode: (FilterBrowserMode) -> Unit = {},
+    customPresets: List<CustomPreset> = emptyList(),
+    availableLuts: List<Lut3D> = emptyList(),
+    activeLut: Lut3D? = null,
+    lutIntensity: Float = 1.0f,
+    onSelectLut: (Lut3D?) -> Unit = {},
+    onLutIntensityChanged: (Float) -> Unit = {},
+    onApplyCustomPreset: (CustomPreset) -> Unit = {},
+    onShareCustomPreset: (CustomPreset) -> Unit = {},
+    onDeleteCustomPreset: (String) -> Unit = {},
+    onShareLut: (Lut3D) -> Unit = {},
+    onDeleteLut: (String) -> Unit = {},
+    onSavePresetClick: () -> Unit = {},
+    onImportPresetOrLutClick: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf(FilterCategory.ALL) }
     val haptics = LocalHapticFeedback.current
@@ -126,9 +144,45 @@ fun FiltersPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 6.dp)
             .testTag("filters_panel")
     ) {
+        FilterBrowserModeHeader(
+            mode = browserMode,
+            onSelectMode = onSelectBrowserMode,
+            onSavePresetClick = onSavePresetClick,
+            onImportClick = onImportPresetOrLutClick,
+            lang = lang
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        when (browserMode) {
+            FilterBrowserMode.PRESETS -> {
+                CustomPresetsBrowser(
+                    presets = customPresets,
+                    onApplyPreset = onApplyCustomPreset,
+                    onSharePreset = onShareCustomPreset,
+                    onDeletePreset = onDeleteCustomPreset,
+                    onSaveNewClick = onSavePresetClick,
+                    lang = lang
+                )
+            }
+            FilterBrowserMode.LUTS -> {
+                Lut3DBrowser(
+                    luts = availableLuts,
+                    activeLut = activeLut,
+                    lutIntensity = lutIntensity,
+                    onSelectLut = onSelectLut,
+                    onIntensityChanged = onLutIntensityChanged,
+                    onShareLut = onShareLut,
+                    onDeleteLut = onDeleteLut,
+                    lang = lang,
+                    hapticFeedback = hapticFeedback,
+                    onEditFinished = onEditFinished
+                )
+            }
+            FilterBrowserMode.FILTERS -> {
         // Intensity Slider (when a non-original filter is selected)
         AnimatedVisibility(
             visible = activePreset != FilterPresets.NONE,
@@ -218,20 +272,22 @@ fun FiltersPanel(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Preset Thumbnails Row
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(filteredList) { preset ->
-                val isSelected = activePreset.id == preset.id
-                FilterItemCard(
-                    preset = preset,
-                    isSelected = isSelected,
-                    onClick = { onSelectPreset(preset) }
-                )
+                // Preset Thumbnails Row
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(filteredList) { preset ->
+                        val isSelected = activePreset.id == preset.id
+                        FilterItemCard(
+                            preset = preset,
+                            isSelected = isSelected,
+                            onClick = { onSelectPreset(preset) }
+                        )
+                    }
+                }
             }
         }
     }
@@ -602,129 +658,20 @@ fun AdjustPanel(
                     )
                 }
                 AdjustCategory.EFFECTS -> {
-                    AdjustSliderItem(
-                        label = AppStrings.sliderBackgroundBlur(lang),
-                        testTagKey = "background_blur",
-                        value = adjustments.backgroundBlur,
-                        range = 0f..100f,
+                    DepthLensBlurSection(
+                        adjustments = adjustments,
+                        lang = lang,
                         hapticFeedback = hapticFeedback,
-                        onEditFinished = onEditFinished,
-                        onValueChange = { v -> onAdjustmentsChanged { it.copy(backgroundBlur = v) } }
+                        onAdjustmentsChanged = onAdjustmentsChanged,
+                        onEditFinished = onEditFinished
                     )
-                    AnimatedVisibility(
-                        visible = adjustments.backgroundBlur > 0f,
-                        enter = fadeIn(tween(180)) + expandVertically(tween(200)),
-                        exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            AdjustSliderItem(
-                                label = AppStrings.sliderFocusSize(lang),
-                                testTagKey = "blur_focus_size",
-                                value = (adjustments.blurFocusRadius * 100f).coerceIn(15f, 70f),
-                                range = 15f..70f,
-                                defaultValue = 32f,
-                                hapticFeedback = hapticFeedback,
-                                onEditFinished = onEditFinished,
-                                onValueChange = { v ->
-                                    onAdjustmentsChanged {
-                                        it.copy(blurFocusRadius = (v / 100f).coerceIn(0.15f, 0.70f))
-                                    }
-                                }
-                            )
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val protectActive = adjustments.blurProtectSubject
-                                val protectBg by animateColorAsState(
-                                    targetValue = if (protectActive) AccentCyan.copy(alpha = 0.2f) else StudioCard,
-                                    animationSpec = tween(160),
-                                    label = "protect_subject_bg"
-                                )
-                                val protectBorder by animateColorAsState(
-                                    targetValue = if (protectActive) AccentCyan else StudioBorder,
-                                    animationSpec = tween(160),
-                                    label = "protect_subject_border"
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .minimumInteractiveComponentSize()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(protectBg)
-                                        .border(
-                                            1.dp,
-                                            protectBorder,
-                                            RoundedCornerShape(14.dp)
-                                        )
-                                        .bounceClickable(pressedScale = 0.94f) {
-                                            onAdjustmentsChanged { it.copy(blurProtectSubject = !it.blurProtectSubject) }
-                                            onEditFinished()
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 7.dp)
-                                        .testTag("blur_protect_subject_toggle")
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Face,
-                                            contentDescription = AppStrings.protectSubjectLabel(lang),
-                                            tint = if (protectActive) AccentCyan else TextSecondary,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = AppStrings.protectSubjectLabel(lang),
-                                            color = if (protectActive) AccentCyan else TextSecondary,
-                                            fontSize = 11.sp,
-                                            fontWeight = if (protectActive) FontWeight.Bold else FontWeight.Normal,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                    }
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .minimumInteractiveComponentSize()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(StudioSurfaceVariant)
-                                        .border(1.dp, StudioBorder, RoundedCornerShape(14.dp))
-                                        .bounceClickable(pressedScale = 0.94f) {
-                                            onAdjustmentsChanged {
-                                                it.copy(
-                                                    blurFocusX = 0.50f,
-                                                    blurFocusY = 0.42f,
-                                                    blurFocusRadius = 0.32f
-                                                )
-                                            }
-                                            onEditFinished()
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 7.dp)
-                                        .testTag("blur_reset_focus_button")
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.CenterFocusStrong,
-                                            contentDescription = AppStrings.blurFocusHint(lang),
-                                            tint = TextPrimary,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text(
-                                            text = AppStrings.blurFocusHint(lang),
-                                            color = TextPrimary,
-                                            fontSize = 11.sp,
-                                            maxLines = 1,
-                                            softWrap = false
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    MotionBlurSection(
+                        adjustments = adjustments,
+                        lang = lang,
+                        hapticFeedback = hapticFeedback,
+                        onAdjustmentsChanged = onAdjustmentsChanged,
+                        onEditFinished = onEditFinished
+                    )
                     AdjustSliderItem(
                         label = AppStrings.sliderSoftGlow(lang),
                         testTagKey = "soft_glow",
