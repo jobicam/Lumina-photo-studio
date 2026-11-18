@@ -33,8 +33,10 @@ import com.example.model.HslState
 import com.example.model.Lut3D
 import com.example.model.MotionBlurTarget
 import com.example.model.RetouchStroke
+import com.example.model.RetouchToolSettings
 import com.example.model.RetouchType
 import com.example.model.SavedImageInfo
+import com.example.model.SculptMode
 import com.example.model.SingleCurve
 import com.example.model.StrokePoint
 import com.example.model.TransformState
@@ -88,7 +90,8 @@ data class EditorHistorySnapshot(
     val curves: CurvesState,
     val hsl: HslState,
     val transform: TransformState,
-    val activeFrame: FrameStyle = FrameStyle.NONE
+    val activeFrame: FrameStyle = FrameStyle.NONE,
+    val hasRetouchEdits: Boolean = false
 )
 
 data class EditorUiState(
@@ -117,10 +120,13 @@ data class EditorUiState(
     val activeFrame: FrameStyle = FrameStyle.NONE,
     // Retouch state
     val activeRetouchTool: RetouchType = RetouchType.SKIN_SMOOTH,
-    val brushRadius: Float = 40f,
-    val brushIntensity: Float = 0.65f,
+    val brushRadius: Float = RetouchType.SKIN_SMOOTH.defaultRadius,
+    val brushIntensity: Float = RetouchType.SKIN_SMOOTH.defaultIntensity,
+    val brushHardness: Float = RetouchType.SKIN_SMOOTH.defaultHardness,
     val texturePreserve: Float = 0.30f,
+    val sculptMode: SculptMode = SculptMode.PUSH,
     val isEraser: Boolean = false,
+    val hasRetouchEdits: Boolean = false,
     val recentRetouchPoint: StrokePoint? = null,
     // Compare state
     val isComparing: Boolean = false,
@@ -165,6 +171,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
     private var updateCheckJob: Job? = null
     private val bitmapMutex = Mutex()
     private var continuousEditSnapshotted = false
+    private val retouchToolSettings = mutableMapOf<RetouchType, RetouchToolSettings>()
 
     init {
         // Pre-load default sample photo, saved custom presets & 3D LUTs in background
@@ -522,6 +529,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 selectedCropRatio = CropAspectRatio.FREE,
                 pendingCropRect = CropRect(),
                 activeFrame = FrameStyle.NONE,
+                hasRetouchEdits = false,
+                isEraser = false,
                 isSplitView = false,
                 isComparing = false,
                 canUndo = false,
@@ -559,7 +568,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             curves = state.curves,
             hsl = state.hsl,
             transform = state.transform,
-            activeFrame = state.activeFrame
+            activeFrame = state.activeFrame,
+            hasRetouchEdits = state.hasRetouchEdits
         )
         undoStack.add(snapshot)
         if (undoStack.size > 10) {
@@ -588,7 +598,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             curves = currentState.curves,
             hsl = currentState.hsl,
             transform = currentState.transform,
-            activeFrame = currentState.activeFrame
+            activeFrame = currentState.activeFrame,
+            hasRetouchEdits = currentState.hasRetouchEdits
         )
         redoStack.add(redoSnapshot)
         if (redoStack.size > 10) {
@@ -612,6 +623,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 selectedCropRatio = CropAspectRatio.FREE,
                 pendingCropRect = CropRect(),
                 activeFrame = previous.activeFrame,
+                hasRetouchEdits = previous.hasRetouchEdits,
                 canUndo = undoStack.isNotEmpty(),
                 canRedo = true
             )
@@ -638,7 +650,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             curves = currentState.curves,
             hsl = currentState.hsl,
             transform = currentState.transform,
-            activeFrame = currentState.activeFrame
+            activeFrame = currentState.activeFrame,
+            hasRetouchEdits = currentState.hasRetouchEdits
         )
         undoStack.add(undoSnapshot)
         if (undoStack.size > 10) {
@@ -662,6 +675,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 selectedCropRatio = CropAspectRatio.FREE,
                 pendingCropRect = CropRect(),
                 activeFrame = next.activeFrame,
+                hasRetouchEdits = next.hasRetouchEdits,
                 canUndo = true,
                 canRedo = redoStack.isNotEmpty()
             )
@@ -1045,30 +1059,111 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
 
     // --- RETOUCH TOOLS ---
     fun selectRetouchTool(tool: RetouchType) {
+        val current = _uiState.value
+        retouchToolSettings[current.activeRetouchTool] = RetouchToolSettings(
+            radius = current.brushRadius,
+            intensity = current.brushIntensity,
+            hardness = current.brushHardness,
+            texturePreserve = current.texturePreserve
+        )
+        val restored = retouchToolSettings[tool] ?: RetouchToolSettings.defaultFor(tool)
         _uiState.update {
             it.copy(
                 activeRetouchTool = tool,
-                brushRadius = tool.defaultRadius,
-                brushIntensity = tool.defaultIntensity,
+                brushRadius = restored.radius,
+                brushIntensity = restored.intensity,
+                brushHardness = restored.hardness,
+                texturePreserve = restored.texturePreserve,
                 isEraser = false
             )
         }
     }
 
     fun setBrushRadius(radius: Float) {
-        _uiState.update { it.copy(brushRadius = radius) }
+        val clamped = radius.coerceIn(10f, 80f)
+        _uiState.update { state ->
+            val updated = state.copy(brushRadius = clamped)
+            retouchToolSettings[state.activeRetouchTool] = RetouchToolSettings(
+                radius = clamped,
+                intensity = state.brushIntensity,
+                hardness = state.brushHardness,
+                texturePreserve = state.texturePreserve
+            )
+            updated
+        }
     }
 
     fun setBrushIntensity(intensity: Float) {
-        _uiState.update { it.copy(brushIntensity = intensity) }
+        val clamped = intensity.coerceIn(0.1f, 1.0f)
+        _uiState.update { state ->
+            val updated = state.copy(brushIntensity = clamped)
+            retouchToolSettings[state.activeRetouchTool] = RetouchToolSettings(
+                radius = state.brushRadius,
+                intensity = clamped,
+                hardness = state.brushHardness,
+                texturePreserve = state.texturePreserve
+            )
+            updated
+        }
+    }
+
+    fun setBrushHardness(hardness: Float) {
+        val clamped = hardness.coerceIn(0.10f, 1.0f)
+        _uiState.update { state ->
+            val updated = state.copy(brushHardness = clamped)
+            retouchToolSettings[state.activeRetouchTool] = RetouchToolSettings(
+                radius = state.brushRadius,
+                intensity = state.brushIntensity,
+                hardness = clamped,
+                texturePreserve = state.texturePreserve
+            )
+            updated
+        }
     }
 
     fun setTexturePreserve(preserve: Float) {
-        _uiState.update { it.copy(texturePreserve = preserve.coerceIn(0f, 0.75f)) }
+        val clamped = preserve.coerceIn(0f, 0.75f)
+        _uiState.update { state ->
+            val updated = state.copy(texturePreserve = clamped)
+            retouchToolSettings[state.activeRetouchTool] = RetouchToolSettings(
+                radius = state.brushRadius,
+                intensity = state.brushIntensity,
+                hardness = state.brushHardness,
+                texturePreserve = clamped
+            )
+            updated
+        }
+    }
+
+    fun selectSculptMode(mode: SculptMode) {
+        _uiState.update { it.copy(sculptMode = mode, isEraser = false) }
     }
 
     fun toggleEraser() {
         _uiState.update { it.copy(isEraser = !it.isEraser) }
+    }
+
+    fun resetRetouchLayer() {
+        val lang = _uiState.value.settings.appLanguage
+        continuousEditSnapshotted = false
+        viewModelScope.launch {
+            bitmapMutex.withLock {
+                val orig = _uiState.value.originalBitmap ?: return@withLock
+                pushHistory(isBitmapMutated = true)
+                val cleanCopy = withContext(Dispatchers.Default) {
+                    orig.copy(Bitmap.Config.ARGB_8888, true)
+                }
+                _uiState.update {
+                    it.copy(
+                        workingBitmap = cleanCopy,
+                        hasRetouchEdits = false,
+                        isEraser = false,
+                        statusMessage = AppStrings.statusRetouchReset(lang)
+                    )
+                }
+                triggerRender()
+            }
+        }
     }
 
     /**
@@ -1091,6 +1186,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                     radius = currentState.brushRadius,
                     intensity = currentState.brushIntensity,
                     texturePreserve = currentState.texturePreserve,
+                    hardness = currentState.brushHardness,
+                    sculptMode = currentState.sculptMode,
                     isEraser = currentState.isEraser
                 )
 
@@ -1103,6 +1200,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 _uiState.update {
                     it.copy(
                         workingBitmap = updatedWorking,
+                        hasRetouchEdits = if (stroke.isEraser) it.hasRetouchEdits else true,
                         recentRetouchPoint = points.lastOrNull(),
                         statusMessage = if (stroke.isEraser) {
                             AppStrings.statusRetouchRestored(lang)
@@ -1140,6 +1238,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 _uiState.update {
                     it.copy(
                         workingBitmap = smoothed,
+                        hasRetouchEdits = true,
                         isProcessing = false,
                         statusMessage = AppStrings.statusAutoSmoothApplied(lang)
                     )

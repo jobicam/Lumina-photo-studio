@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -7,10 +8,11 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -38,11 +40,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Gesture
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.RemoveRedEye
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
+import androidx.compose.material.icons.filled.SwipeRight
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -72,6 +78,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
 import com.example.model.RetouchCategory
 import com.example.model.RetouchType
+import com.example.model.SculptMode
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.AccentPink
@@ -111,6 +118,12 @@ fun RetouchPanel(
     onToggleEraser: () -> Unit = {},
     texturePreserve: Float = 0.30f,
     onTexturePreserveChanged: (Float) -> Unit = {},
+    brushHardness: Float = 0.55f,
+    onHardnessChanged: (Float) -> Unit = {},
+    sculptMode: SculptMode = SculptMode.PUSH,
+    onSelectSculptMode: (SculptMode) -> Unit = {},
+    hasRetouchEdits: Boolean = false,
+    onResetRetouch: () -> Unit = {},
     onAutoSkinSmooth: () -> Unit = {},
     onOpenBackgroundBlur: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -120,6 +133,7 @@ fun RetouchPanel(
     val haptics = LocalHapticFeedback.current
     var lastRadiusInt by remember { mutableIntStateOf(brushRadius.toInt()) }
     var lastIntensityInt by remember { mutableIntStateOf((brushIntensity * 100).toInt()) }
+    var lastHardnessInt by remember { mutableIntStateOf((brushHardness * 100).toInt()) }
     var lastDetailInt by remember { mutableIntStateOf((texturePreserve * 100).toInt()) }
 
     val activeAccent by animateColorAsState(
@@ -135,7 +149,7 @@ fun RetouchPanel(
             .padding(vertical = 5.dp)
             .testTag("retouch_panel")
     ) {
-        // 1. Studio Header Bar: Spacious Active Tool / Restore Info + Restore Brush Toggle
+        // 1. Studio Header Bar: Active Tool / Restore Info + Restore Brush Toggle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -177,7 +191,6 @@ fun RetouchPanel(
                 )
             }
 
-            // Restore Original (Eraser) Brush Toggle
             val eraserBg by animateColorAsState(
                 targetValue = if (isEraser) AccentAmber.copy(alpha = 0.25f) else StudioCard,
                 animationSpec = tween(180),
@@ -224,7 +237,7 @@ fun RetouchPanel(
 
         Spacer(modifier = Modifier.height(5.dp))
 
-        // 2. Redesigned Studio Tool Selector Dock
+        // 2. Tool Selector Dock
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 14.dp),
@@ -330,7 +343,7 @@ fun RetouchPanel(
 
         Spacer(modifier = Modifier.height(5.dp))
 
-        // 3. Unified Live Brush Deck (Nib Preview + Quick Size Presets + Sliders)
+        // 3. Upgraded Live Brush Deck (Feathered Nib Preview + Quick Size Presets + Size / Intensity / Hardness)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -348,6 +361,7 @@ fun RetouchPanel(
             LiveBrushNibPreview(
                 brushRadius = brushRadius,
                 brushIntensity = brushIntensity,
+                brushHardness = brushHardness,
                 accentColor = activeAccent,
                 isEraser = isEraser
             )
@@ -356,7 +370,7 @@ fun RetouchPanel(
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(1.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -366,7 +380,7 @@ fun RetouchPanel(
                         text = AppStrings.sizeLabel(lang),
                         fontSize = 11.sp,
                         color = TextSecondary,
-                        modifier = Modifier.width(48.dp),
+                        modifier = Modifier.width(46.dp),
                         maxLines = 1
                     )
                     Slider(
@@ -387,7 +401,7 @@ fun RetouchPanel(
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(26.dp)
+                            .height(24.dp)
                             .testTag("brush_size_slider")
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -415,7 +429,7 @@ fun RetouchPanel(
                         text = AppStrings.intensityLabel(lang),
                         fontSize = 11.sp,
                         color = TextSecondary,
-                        modifier = Modifier.width(48.dp),
+                        modifier = Modifier.width(46.dp),
                         maxLines = 1
                     )
                     Slider(
@@ -436,154 +450,246 @@ fun RetouchPanel(
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(26.dp)
+                            .height(24.dp)
                             .testTag("brush_intensity_slider")
                     )
                     Text(
                         text = "${(brushIntensity * 100).toInt()}%",
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         color = AccentAmber,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(42.dp)
+                        modifier = Modifier.width(36.dp)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = AppStrings.hardnessLabel(lang),
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.width(46.dp),
+                        maxLines = 1
+                    )
+                    Slider(
+                        value = brushHardness,
+                        onValueChange = { v ->
+                            val step = (v * 100).toInt()
+                            if (hapticFeedback && step != lastHardnessInt) {
+                                lastHardnessInt = step
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            onHardnessChanged(v)
+                        },
+                        valueRange = 0.10f..1.0f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = activeAccent,
+                            activeTrackColor = activeAccent.copy(alpha = 0.85f),
+                            inactiveTrackColor = StudioBorder
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(24.dp)
+                            .testTag("brush_hardness_slider")
+                    )
+                    Text(
+                        text = "${(brushHardness * 100).toInt()}%",
+                        fontSize = 10.sp,
+                        color = activeAccent,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(36.dp)
                     )
                 }
             }
         }
 
-        // 4. Context-Aware Tool Controls Strip
-        val hasContextControls = isEraser ||
-            activeTool == RetouchType.SKIN_SMOOTH ||
-            activeTool == RetouchType.SCULPT
-
-        AnimatedVisibility(
-            visible = hasContextControls,
-            enter = fadeIn(tween(180)) + expandVertically(tween(200)),
-            exit = fadeOut(tween(150)) + shrinkVertically(tween(180))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 14.dp, end = 14.dp, top = 5.dp)
-            ) {
-                when {
-                    isEraser -> {
-                        Row(
+        // 4. Context-Aware Tool Controls Strip (All 6 Tools + Restore Mode)
+        Spacer(modifier = Modifier.height(5.dp))
+        val contextKey = if (isEraser) "ERASER" else activeTool.name
+        AnimatedContent(
+            targetState = contextKey,
+            transitionSpec = {
+                fadeIn(tween(170)) togetherWith fadeOut(tween(130))
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp),
+            label = "retouch_context_strip"
+        ) { key ->
+            when (key) {
+                "ERASER" -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AccentAmber.copy(alpha = 0.14f))
+                            .border(1.dp, AccentAmber.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            tint = AccentAmber,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = AppStrings.restoreBrushSubtitle(lang),
+                            color = TextPrimary,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(AccentAmber.copy(alpha = 0.14f))
-                                .border(1.dp, AccentAmber.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .clip(RoundedCornerShape(7.dp))
+                                .background(AccentAmber)
+                                .bounceClickable(pressedScale = 0.92f, onClick = onToggleEraser)
+                                .padding(horizontal = 9.dp, vertical = 3.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = null,
-                                tint = AccentAmber,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = AppStrings.restoreBrushSubtitle(lang),
-                                color = TextPrimary,
+                                text = AppStrings.done(lang),
+                                color = Color.Black,
                                 fontSize = 10.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(7.dp))
-                                    .background(AccentAmber)
-                                    .bounceClickable(pressedScale = 0.92f, onClick = onToggleEraser)
-                                    .padding(horizontal = 9.dp, vertical = 3.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = AppStrings.done(lang),
-                                    color = Color.Black,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                        }
+                    }
+                }
+
+                RetouchType.SKIN_SMOOTH.name -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(StudioCard)
+                            .border(1.dp, AccentPink.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = AppStrings.texturePreserveLabel(lang),
+                            fontSize = 11.sp,
+                            color = AccentPink,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier.width(60.dp)
+                        )
+                        Slider(
+                            value = texturePreserve,
+                            onValueChange = { v ->
+                                val step = (v * 100).toInt()
+                                if (hapticFeedback && step != lastDetailInt) {
+                                    lastDetailInt = step
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                                onTexturePreserveChanged(v)
+                            },
+                            valueRange = 0f..0.75f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = AccentPink,
+                                activeTrackColor = AccentPink,
+                                inactiveTrackColor = StudioBorder
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(26.dp)
+                                .testTag("texture_preserve_slider")
+                        )
+                        Text(
+                            text = "${(texturePreserve * 100).toInt()}%",
+                            fontSize = 11.sp,
+                            color = AccentPink,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(38.dp)
+                        )
+                    }
+                }
+
+                RetouchType.SCULPT.name -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AccentPurple.copy(alpha = 0.12f))
+                            .border(1.dp, AccentPurple.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        SculptModePill(
+                            mode = SculptMode.PUSH,
+                            icon = Icons.Default.SwipeRight,
+                            isSelected = sculptMode == SculptMode.PUSH,
+                            lang = lang,
+                            onClick = {
+                                if (hapticFeedback) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSelectSculptMode(SculptMode.PUSH)
                             }
-                        }
+                        )
+                        SculptModePill(
+                            mode = SculptMode.SLIM,
+                            icon = Icons.Default.Compress,
+                            isSelected = sculptMode == SculptMode.SLIM,
+                            lang = lang,
+                            onClick = {
+                                if (hapticFeedback) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSelectSculptMode(SculptMode.SLIM)
+                            }
+                        )
+                        SculptModePill(
+                            mode = SculptMode.PLUMP,
+                            icon = Icons.Default.OpenInFull,
+                            isSelected = sculptMode == SculptMode.PLUMP,
+                            lang = lang,
+                            onClick = {
+                                if (hapticFeedback) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSelectSculptMode(SculptMode.PLUMP)
+                            }
+                        )
+                        Text(
+                            text = AppStrings.sculptModeHint(sculptMode, lang),
+                            color = TextSecondary,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
+                }
 
-                    activeTool == RetouchType.SKIN_SMOOTH -> {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(StudioCard)
-                                .border(1.dp, AccentPink.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 10.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = AppStrings.texturePreserveLabel(lang),
-                                fontSize = 11.sp,
-                                color = AccentPink,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                modifier = Modifier.width(64.dp)
-                            )
-                            Slider(
-                                value = texturePreserve,
-                                onValueChange = { v ->
-                                    val step = (v * 100).toInt()
-                                    if (hapticFeedback && step != lastDetailInt) {
-                                        lastDetailInt = step
-                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                    onTexturePreserveChanged(v)
-                                },
-                                valueRange = 0f..0.75f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = AccentPink,
-                                    activeTrackColor = AccentPink,
-                                    inactiveTrackColor = StudioBorder
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(28.dp)
-                                    .testTag("texture_preserve_slider")
-                            )
-                            Text(
-                                text = "${(texturePreserve * 100).toInt()}%",
-                                fontSize = 11.sp,
-                                color = AccentPink,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.width(38.dp)
-                            )
-                        }
-                    }
-
-                    activeTool == RetouchType.SCULPT -> {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(AccentPurple.copy(alpha = 0.12f))
-                                .border(1.dp, AccentPurple.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Gesture,
-                                contentDescription = null,
-                                tint = AccentPurple,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = AppStrings.sculptDragHint(lang),
-                                color = TextPrimary,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                else -> {
+                    val toolAccent = retouchToolAccent(activeTool)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(toolAccent.copy(alpha = 0.10f))
+                            .border(1.dp, toolAccent.copy(alpha = 0.30f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = retouchToolIcon(activeTool),
+                            contentDescription = null,
+                            tint = toolAccent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = AppStrings.retouchProTip(activeTool, lang),
+                            color = TextPrimary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -591,12 +697,13 @@ fun RetouchPanel(
 
         Spacer(modifier = Modifier.height(5.dp))
 
-        // 5. Spacious Studio One-Tap Actions Strip (Auto Smooth + Blur Background)
+        // 5. Studio One-Tap Actions Strip (Auto Smooth + Blur Background + Optional Reset Retouch)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
@@ -612,8 +719,11 @@ fun RetouchPanel(
                         )
                     )
                     .border(1.dp, AccentPink.copy(alpha = 0.50f), RoundedCornerShape(10.dp))
-                    .bounceClickable(pressedScale = 0.95f, onClick = onAutoSkinSmooth)
-                    .padding(horizontal = 10.dp)
+                    .bounceClickable(pressedScale = 0.95f) {
+                        if (hapticFeedback) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onAutoSkinSmooth()
+                    }
+                    .padding(horizontal = 8.dp)
                     .testTag("auto_skin_smooth_button"),
                 contentAlignment = Alignment.Center
             ) {
@@ -624,7 +734,7 @@ fun RetouchPanel(
                         tint = AccentPink,
                         modifier = Modifier.size(15.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = AppStrings.autoSmoothSkin(lang),
                         fontSize = 11.sp,
@@ -643,8 +753,11 @@ fun RetouchPanel(
                     .clip(RoundedCornerShape(10.dp))
                     .background(AccentCyan.copy(alpha = 0.14f))
                     .border(1.dp, AccentCyan.copy(alpha = 0.48f), RoundedCornerShape(10.dp))
-                    .bounceClickable(pressedScale = 0.95f, onClick = onOpenBackgroundBlur)
-                    .padding(horizontal = 10.dp)
+                    .bounceClickable(pressedScale = 0.95f) {
+                        if (hapticFeedback) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onOpenBackgroundBlur()
+                    }
+                    .padding(horizontal = 8.dp)
                     .testTag("quick_blur_bg_button"),
                 contentAlignment = Alignment.Center
             ) {
@@ -655,7 +768,7 @@ fun RetouchPanel(
                         tint = AccentCyan,
                         modifier = Modifier.size(15.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = AppStrings.quickBlurBg(lang),
                         fontSize = 11.sp,
@@ -666,6 +779,95 @@ fun RetouchPanel(
                     )
                 }
             }
+
+            AnimatedVisibility(
+                visible = hasRetouchEdits,
+                enter = fadeIn(tween(180)) + expandHorizontally(tween(200)),
+                exit = fadeOut(tween(140)) + shrinkHorizontally(tween(180))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .height(34.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AccentAmber.copy(alpha = 0.14f))
+                        .border(1.dp, AccentAmber.copy(alpha = 0.50f), RoundedCornerShape(10.dp))
+                        .bounceClickable(pressedScale = 0.94f) {
+                            if (hapticFeedback) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onResetRetouch()
+                        }
+                        .padding(horizontal = 10.dp)
+                        .testTag("reset_retouch_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.RestartAlt,
+                            contentDescription = AppStrings.resetRetouchLabel(lang),
+                            tint = AccentAmber,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = AppStrings.resetRetouchLabel(lang),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentAmber,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SculptModePill(
+    mode: SculptMode,
+    icon: ImageVector,
+    isSelected: Boolean,
+    lang: AppLanguage,
+    onClick: () -> Unit
+) {
+    val bg by animateColorAsState(
+        targetValue = if (isSelected) AccentPurple.copy(alpha = 0.30f) else StudioCard,
+        animationSpec = tween(160),
+        label = "sculpt_pill_bg_${mode.name}"
+    )
+    val border by animateColorAsState(
+        targetValue = if (isSelected) AccentPurple else StudioBorder,
+        animationSpec = tween(160),
+        label = "sculpt_pill_border_${mode.name}"
+    )
+    val label = AppStrings.sculptModeLabel(mode, lang)
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(bg)
+            .border(1.dp, border, RoundedCornerShape(8.dp))
+            .bounceClickable(pressedScale = 0.92f, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .testTag("sculpt_mode_${mode.name.lowercase()}"),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (isSelected) AccentPurple else TextSecondary,
+                modifier = Modifier.size(13.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) TextPrimary else TextSecondary,
+                maxLines = 1,
+                softWrap = false
+            )
         }
     }
 }
@@ -674,6 +876,7 @@ fun RetouchPanel(
 private fun LiveBrushNibPreview(
     brushRadius: Float,
     brushIntensity: Float,
+    brushHardness: Float,
     accentColor: Color,
     isEraser: Boolean
 ) {
@@ -688,25 +891,40 @@ private fun LiveBrushNibPreview(
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(44.dp)
                 .clip(CircleShape)
                 .background(StudioBackground)
                 .border(1.dp, StudioBorder, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val r = (animatedNibSize.toPx() / 2f).coerceAtMost(size.minDimension / 2f - 2.dp.toPx())
+                val r = (animatedNibSize.toPx() / 2f).coerceAtMost(size.minDimension / 2f - 2.dp.toPx()).coerceAtLeast(2f)
+                val coreAlpha = (0.22f + brushIntensity * 0.44f).coerceIn(0.22f, 0.66f)
+                val coreStop = (brushHardness * 0.78f).coerceIn(0.12f, 0.85f)
                 drawCircle(
-                    color = accentColor.copy(alpha = (0.18f + brushIntensity * 0.42f).coerceIn(0.18f, 0.60f)),
+                    brush = Brush.radialGradient(
+                        colorStops = arrayOf(
+                            0.0f to accentColor.copy(alpha = coreAlpha),
+                            coreStop to accentColor.copy(alpha = coreAlpha * 0.72f),
+                            1.0f to accentColor.copy(alpha = 0.04f)
+                        ),
+                        center = center,
+                        radius = r
+                    ),
                     radius = r
                 )
                 drawCircle(
                     color = accentColor,
                     radius = r,
                     style = Stroke(
-                        width = 1.6.dp.toPx(),
+                        width = 1.5.dp.toPx(),
                         pathEffect = if (isEraser) PathEffect.dashPathEffect(floatArrayOf(6f, 4f), 0f) else null
                     )
+                )
+                drawCircle(
+                    color = accentColor.copy(alpha = 0.45f),
+                    radius = (r * coreStop).coerceAtLeast(2f),
+                    style = Stroke(width = 0.8.dp.toPx())
                 )
                 drawCircle(
                     color = Color.White,

@@ -619,4 +619,34 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.sliderMotionAngle(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.tabColorGradeLabel(km).isNotBlank())
     }
+
+    @Test
+    fun testRetouchUpgrade_sculptModesHardnessAndBilingualStrings() {
+        val en = com.example.model.AppLanguage.ENGLISH
+        val km = com.example.model.AppLanguage.KHMER
+
+        assertTrue(com.example.util.AppStrings.hardnessLabel(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.hardnessLabel(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.resetRetouchLabel(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.resetRetouchLabel(km).isNotBlank())
+        assertTrue(com.example.util.AppStrings.statusRetouchReset(en).isNotBlank())
+        assertTrue(com.example.util.AppStrings.statusRetouchReset(km).isNotBlank())
+
+        com.example.model.SculptMode.values().forEach { mode ->
+            assertTrue(com.example.util.AppStrings.sculptModeLabel(mode, en).isNotBlank())
+            assertTrue(com.example.util.AppStrings.sculptModeLabel(mode, km).isNotBlank())
+            assertTrue(com.example.util.AppStrings.sculptModeHint(mode, en).isNotBlank())
+            assertTrue(com.example.util.AppStrings.sculptModeHint(mode, km).isNotBlank())
+        }
+
+        com.example.model.RetouchType.values().forEach { tool ->
+            assertTrue(tool.defaultHardness in 0.1f..1.0f)
+            val defaults = com.example.model.RetouchToolSettings.defaultFor(tool)
+            assertEquals(tool.defaultRadius, defaults.radius, 0.001f)
+            assertEquals(tool.defaultIntensity, defaults.intensity, 0.001f)
+            assertEquals(tool.defaultHardness, defaults.hardness, 0.001f)
+            assertTrue(com.example.util.AppStrings.retouchProTip(tool, en).isNotBlank())
+            assertTrue(com.example.util.AppStrings.retouchProTip(tool, km).isNotBlank())
+        }
+    }
 }

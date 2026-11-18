@@ -6,11 +6,18 @@ enum class RetouchCategory {
     CONTOUR
 }
 
+enum class SculptMode {
+    PUSH,
+    SLIM,
+    PLUMP
+}
+
 enum class RetouchType(
     val title: String,
     val subtitle: String,
     val defaultRadius: Float,
     val defaultIntensity: Float,
+    val defaultHardness: Float = 0.55f,
     val category: RetouchCategory = RetouchCategory.SKIN
 ) {
     SKIN_SMOOTH(
@@ -18,6 +25,7 @@ enum class RetouchType(
         subtitle = "Softens skin texture & evens pores",
         defaultRadius = 40f,
         defaultIntensity = 0.65f,
+        defaultHardness = 0.42f,
         category = RetouchCategory.SKIN
     ),
     TEETH_WHITEN(
@@ -25,6 +33,7 @@ enum class RetouchType(
         subtitle = "Removes yellow tint & brightens teeth",
         defaultRadius = 28f,
         defaultIntensity = 0.70f,
+        defaultHardness = 0.60f,
         category = RetouchCategory.FEATURES
     ),
     EYE_POP(
@@ -32,13 +41,15 @@ enum class RetouchType(
         subtitle = "Enhances iris sparkle & eye clarity",
         defaultRadius = 30f,
         defaultIntensity = 0.60f,
+        defaultHardness = 0.62f,
         category = RetouchCategory.FEATURES
     ),
     SCULPT(
         title = "Sculpt & Warp",
-        subtitle = "Nudge & refine contours smoothly",
+        subtitle = "Nudge, slim & plump contours smoothly",
         defaultRadius = 45f,
         defaultIntensity = 0.50f,
+        defaultHardness = 0.48f,
         category = RetouchCategory.CONTOUR
     ),
     DETAIL_SHARPEN(
@@ -46,6 +57,7 @@ enum class RetouchType(
         subtitle = "Sharpen eyes, brows, lips & hair",
         defaultRadius = 32f,
         defaultIntensity = 0.75f,
+        defaultHardness = 0.68f,
         category = RetouchCategory.FEATURES
     ),
     GLOW(
@@ -53,8 +65,25 @@ enum class RetouchType(
         subtitle = "Adds a subtle radiant beauty glow",
         defaultRadius = 48f,
         defaultIntensity = 0.45f,
+        defaultHardness = 0.35f,
         category = RetouchCategory.CONTOUR
     )
+}
+
+data class RetouchToolSettings(
+    val radius: Float,
+    val intensity: Float,
+    val hardness: Float,
+    val texturePreserve: Float = 0.30f
+) {
+    companion object {
+        fun defaultFor(tool: RetouchType): RetouchToolSettings = RetouchToolSettings(
+            radius = tool.defaultRadius,
+            intensity = tool.defaultIntensity,
+            hardness = tool.defaultHardness,
+            texturePreserve = 0.30f
+        )
+    }
 }
 
 data class RetouchStroke(
@@ -63,7 +92,9 @@ data class RetouchStroke(
     val radius: Float,
     val intensity: Float,
     val isEraser: Boolean = false,
-    val texturePreserve: Float = 0.30f
+    val texturePreserve: Float = 0.30f,
+    val hardness: Float = 0.55f,
+    val sculptMode: SculptMode = SculptMode.PUSH
 )
 
 data class StrokePoint(
@@ -71,4 +102,3 @@ data class StrokePoint(
     val normY: Float,
     val pressure: Float = 1.0f
 )
-

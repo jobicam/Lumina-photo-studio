@@ -89,6 +89,27 @@ object AppStrings {
     fun restoreBrushSubtitle(lang: AppLanguage) = if (isKhmer(lang)) "អូសដើម្បីបង្ហាញផ្ទៃរូបភាពដើមឡើងវិញ" else "Brush to restore original unretouched pixels"
     fun retouchRestoreModeBadge(lang: AppLanguage) = if (isKhmer(lang)) "ទម្រង់ស្ដារដើម • អូសដើម្បីស្ដាររូបដើម" else "RESTORE BRUSH • PAINT TO REVEAL ORIGINAL"
     fun sculptDragHint(lang: AppLanguage) = if (isKhmer(lang)) "អូសស្រាលៗតាមគែមមុខដើម្បីរុញកែទម្រង់" else "Drag gently along contours to nudge & shape"
+    fun sculptModeLabel(mode: com.example.model.SculptMode, lang: AppLanguage): String = when (mode) {
+        com.example.model.SculptMode.PUSH -> if (isKhmer(lang)) "រុញ" else "Nudge"
+        com.example.model.SculptMode.SLIM -> if (isKhmer(lang)) "បង្រួម" else "Slim"
+        com.example.model.SculptMode.PLUMP -> if (isKhmer(lang)) "ពង្រីក" else "Plump"
+    }
+    fun sculptModeHint(mode: com.example.model.SculptMode, lang: AppLanguage): String = when (mode) {
+        com.example.model.SculptMode.PUSH -> if (isKhmer(lang)) "អូសដើម្បីរុញទម្រង់" else "Drag to push contours"
+        com.example.model.SculptMode.SLIM -> if (isKhmer(lang)) "ចុច ឬអូសដើម្បីបង្រួម" else "Tap or drag to slim"
+        com.example.model.SculptMode.PLUMP -> if (isKhmer(lang)) "ចុច ឬអូសដើម្បីបន្ថែមទំហំ" else "Tap or drag to plump"
+    }
+    fun hardnessLabel(lang: AppLanguage) = if (isKhmer(lang)) "គែមជក់" else "Edge"
+    fun resetRetouchLabel(lang: AppLanguage) = if (isKhmer(lang)) "សម្អាត Retouch" else "Reset"
+    fun statusRetouchReset(lang: AppLanguage) = if (isKhmer(lang)) "បានសម្អាតការកែ Retouch ទាំងអស់" else "All retouch strokes cleared"
+    fun retouchProTip(tool: com.example.model.RetouchType, lang: AppLanguage): String = when (tool) {
+        com.example.model.RetouchType.SKIN_SMOOTH -> if (isKhmer(lang)) "រក្សាភាពលម្អិត" else "Detail"
+        com.example.model.RetouchType.TEETH_WHITEN -> if (isKhmer(lang)) "ការពារពណ៌បបូរមាត់ • សម្អាតពណ៌លឿង" else "Lip-safe enamel neutralizer active"
+        com.example.model.RetouchType.EYE_POP -> if (isKhmer(lang)) "ការពារប្រស្រីខ្មៅ • បង្កើនពន្លឺភ្នែក" else "Pupil-safe iris clarity & catchlight"
+        com.example.model.RetouchType.DETAIL_SHARPEN -> if (isKhmer(lang)) "បង្កើនភាពច្បាស់ពន្លឺគ្មានគ្រាប់រំខាន" else "Luminance edge-safe micro crispness"
+        com.example.model.RetouchType.GLOW -> if (isKhmer(lang)) "ពន្លឺគុជខ្យងរលោងទន់ភ្លន់" else "Soft pearlescent highlight bloom"
+        com.example.model.RetouchType.SCULPT -> sculptDragHint(lang)
+    }
 
     // --- Tool Panels ---
     fun strength(lang: AppLanguage) = if (isKhmer(lang)) "កម្រិត" else "Strength"

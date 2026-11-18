@@ -82,6 +82,7 @@ import com.example.model.AppLanguage
 import com.example.model.CropRect
 import com.example.model.HistogramData
 import com.example.model.RetouchType
+import com.example.model.SculptMode
 import com.example.model.StrokePoint
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentCyan
@@ -106,6 +107,8 @@ fun PhotoCanvas(
     retouchType: RetouchType,
     brushRadius: Float,
     brushIntensity: Float = 0.75f,
+    brushHardness: Float = 0.55f,
+    sculptMode: SculptMode = SculptMode.PUSH,
     isEraser: Boolean = false,
     isComparing: Boolean,
     isSplitView: Boolean,
@@ -164,6 +167,13 @@ fun PhotoCanvas(
     // Brush cursor tracking for Retouch mode
     var activeTouchPos by remember { mutableStateOf<Offset?>(null) }
     val currentPoints = remember { mutableStateListOf<StrokePoint>() }
+
+    LaunchedEffect(isRetouchMode) {
+        if (!isRetouchMode) {
+            currentPoints.clear()
+            activeTouchPos = null
+        }
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -438,45 +448,99 @@ fun PhotoCanvas(
                     }
                 }
 
-                // Brush cursor ring indicator for Retouch mode
-                if (isRetouchMode && activeTouchPos != null) {
-                    val pos = activeTouchPos!!
+                // Live Retouch Trail + Hardness-Aware Brush Cursor Ring
+                if (isRetouchMode && (activeTouchPos != null || currentPoints.isNotEmpty())) {
                     val cursorRadiusPx = (brushRadius * min(renderW, renderH) / 400f).coerceAtLeast(10f)
                     val cursorColor = if (isEraser) AccentAmber else retouchToolAccent(retouchType)
                     val fillAlpha = (0.14f + brushIntensity * 0.24f).coerceIn(0.14f, 0.38f)
+                    val coreScale = (brushHardness * 0.72f).coerceIn(0.15f, 0.78f)
+                    val trailPoints = currentPoints.toList()
 
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawCircle(
-                            color = cursorColor.copy(alpha = fillAlpha),
-                            radius = cursorRadiusPx,
-                            center = pos
-                        )
-                        // Subtle white outer contrast halo
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.55f),
-                            radius = cursorRadiusPx + 1.5.dp.toPx(),
-                            center = pos,
-                            style = Stroke(width = 1.dp.toPx())
-                        )
-                        drawCircle(
-                            color = cursorColor,
-                            radius = cursorRadiusPx,
-                            center = pos,
-                            style = Stroke(
-                                width = 2.dp.toPx(),
-                                pathEffect = if (isEraser) {
-                                    androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                                        floatArrayOf(10f, 7f),
-                                        0f
+                        if (trailPoints.size >= 2) {
+                            val trailPath = Path().apply {
+                                val firstX = imgLeft + trailPoints[0].normX * renderW
+                                val firstY = imgTop + trailPoints[0].normY * renderH
+                                moveTo(firstX, firstY)
+                                for (idx in 1 until trailPoints.size) {
+                                    lineTo(
+                                        imgLeft + trailPoints[idx].normX * renderW,
+                                        imgTop + trailPoints[idx].normY * renderH
                                     )
-                                } else null
+                                }
+                            }
+                            drawPath(
+                                path = trailPath,
+                                color = cursorColor.copy(alpha = (0.16f + brushIntensity * 0.14f).coerceIn(0.16f, 0.30f)),
+                                style = Stroke(
+                                    width = cursorRadiusPx * 1.4f,
+                                    cap = StrokeCap.Round,
+                                    join = androidx.compose.ui.graphics.StrokeJoin.Round,
+                                    pathEffect = if (isEraser) {
+                                        androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                                            floatArrayOf(12f, 8f),
+                                            0f
+                                        )
+                                    } else null
+                                )
                             )
-                        )
-                        drawCircle(
-                            color = Color.White,
-                            radius = 2.5.dp.toPx(),
-                            center = pos
-                        )
+                        }
+
+                        val pos = activeTouchPos
+                        if (pos != null) {
+                            drawCircle(
+                                color = cursorColor.copy(alpha = fillAlpha),
+                                radius = cursorRadiusPx,
+                                center = pos
+                            )
+                            // Subtle white outer contrast halo
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.55f),
+                                radius = cursorRadiusPx + 1.5.dp.toPx(),
+                                center = pos,
+                                style = Stroke(width = 1.dp.toPx())
+                            )
+                            drawCircle(
+                                color = cursorColor,
+                                radius = cursorRadiusPx,
+                                center = pos,
+                                style = Stroke(
+                                    width = 2.dp.toPx(),
+                                    pathEffect = if (isEraser) {
+                                        androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                                            floatArrayOf(10f, 7f),
+                                            0f
+                                        )
+                                    } else null
+                                )
+                            )
+                            // Inner hardness core indicator
+                            drawCircle(
+                                color = cursorColor.copy(alpha = 0.55f),
+                                radius = (cursorRadiusPx * coreScale).coerceAtLeast(4f),
+                                center = pos,
+                                style = Stroke(width = 1.dp.toPx())
+                            )
+                            // Sculpt mode directional/pinch cue at brush center
+                            if (!isEraser && retouchType == RetouchType.SCULPT) {
+                                val cue = 5.dp.toPx()
+                                when (sculptMode) {
+                                    SculptMode.SLIM -> {
+                                        drawLine(Color.White, Offset(pos.x - cue * 1.6f, pos.y), Offset(pos.x - 3f, pos.y), strokeWidth = 1.5.dp.toPx())
+                                        drawLine(Color.White, Offset(pos.x + cue * 1.6f, pos.y), Offset(pos.x + 3f, pos.y), strokeWidth = 1.5.dp.toPx())
+                                    }
+                                    SculptMode.PLUMP -> {
+                                        drawCircle(Color.White.copy(alpha = 0.9f), radius = cue * 1.2f, center = pos, style = Stroke(width = 1.4.dp.toPx()))
+                                    }
+                                    SculptMode.PUSH -> Unit
+                                }
+                            }
+                            drawCircle(
+                                color = Color.White,
+                                radius = 2.5.dp.toPx(),
+                                center = pos
+                            )
+                        }
                     }
                 }
                 // Interactive Background Blur Focus Ring

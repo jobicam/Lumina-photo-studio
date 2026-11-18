@@ -759,4 +759,134 @@ class PhotoEditorRobolectricTest {
         vm.redo()
         assertEquals(com.example.processing.BuiltInLuts.KODACHROME_64.id, vm.uiState.value.activeLut?.id)
     }
+
+    @Test
+    fun testRetouchUpgrade_lipSafeTeethContinuousPathAndSculptModes() {
+        // 1. Lip-safe Teeth Whitening: yellow enamel whitens while red/pink lip hue stays protected
+        val toothColor = Color.rgb(220, 210, 145)
+        val lipColor = Color.rgb(195, 55, 70)
+        val teethBmp = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 64) {
+            for (x in 0 until 64) {
+                teethBmp.setPixel(x, y, if (x < 32) toothColor else lipColor)
+            }
+        }
+        BitmapProcessor.applyRetouchStroke(
+            teethBmp,
+            RetouchStroke(
+                type = RetouchType.TEETH_WHITEN,
+                points = listOf(StrokePoint(0.5f, 0.5f)),
+                radius = 70f,
+                intensity = 0.9f,
+                hardness = 0.8f
+            )
+        )
+        val whitenedTooth = teethBmp.getPixel(28, 32)
+        val protectedLip = teethBmp.getPixel(36, 32)
+        assertTrue(
+            "Yellow tooth blue channel should increase after whitening (was ${Color.blue(toothColor)}, now ${Color.blue(whitenedTooth)})",
+            Color.blue(whitenedTooth) > Color.blue(toothColor) + 15
+        )
+        assertEquals("Lip pixel hue should remain shielded from teeth whitening", lipColor, protectedLip)
+
+        // 2. Continuous stroke path interpolation across widely spaced drag points
+        val trailBmp = Bitmap.createBitmap(80, 80, Bitmap.Config.ARGB_8888)
+        val baseDark = Color.rgb(90, 90, 90)
+        trailBmp.eraseColor(baseDark)
+        BitmapProcessor.applyRetouchStroke(
+            trailBmp,
+            RetouchStroke(
+                type = RetouchType.GLOW,
+                points = listOf(StrokePoint(0.15f, 0.5f), StrokePoint(0.85f, 0.5f)),
+                radius = 22f,
+                intensity = 0.9f
+            )
+        )
+        val midPixel = trailBmp.getPixel(40, 40)
+        assertTrue(
+            "Midpoint along sparse drag stroke must be interpolated & brightened",
+            Color.red(midPixel) > Color.red(baseDark) + 10
+        )
+
+        // 3. Sculpt SLIM and PLUMP radial modes warp in distinct radial directions
+        val stripeBmp = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 64) {
+            for (x in 0 until 64) {
+                // Bright ring band around center distance ~6px
+                val dx = x - 32
+                val dy = y - 32
+                val d2 = dx * dx + dy * dy
+                val c = if (d2 in 25..49) Color.rgb(240, 240, 240) else Color.rgb(60, 60, 60)
+                stripeBmp.setPixel(x, y, c)
+            }
+        }
+        val slimBmp = stripeBmp.copy(Bitmap.Config.ARGB_8888, true)
+        val plumpBmp = stripeBmp.copy(Bitmap.Config.ARGB_8888, true)
+        BitmapProcessor.applyRetouchStroke(
+            slimBmp,
+            RetouchStroke(
+                type = RetouchType.SCULPT,
+                points = listOf(StrokePoint(0.5f, 0.5f)),
+                radius = 65f,
+                intensity = 0.9f,
+                sculptMode = com.example.model.SculptMode.SLIM
+            )
+        )
+        BitmapProcessor.applyRetouchStroke(
+            plumpBmp,
+            RetouchStroke(
+                type = RetouchType.SCULPT,
+                points = listOf(StrokePoint(0.5f, 0.5f)),
+                radius = 65f,
+                intensity = 0.9f,
+                sculptMode = com.example.model.SculptMode.PLUMP
+            )
+        )
+        // At inner edge (36, 32) Slim pulls bright ring inward while Plump pushes dark center outward
+        assertTrue(
+            "Slim pinch should pull more bright ring energy inward than Plump expand",
+            Color.red(slimBmp.getPixel(36, 32)) > Color.red(plumpBmp.getPixel(36, 32))
+        )
+
+        // 4. ViewModel remembered per-tool brush settings, sculpt mode & retouch layer reset
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.viewmodel.PhotoEditorViewModel(app)
+        val deadline = System.currentTimeMillis() + 5000L
+        while (vm.uiState.value.workingBitmap == null && System.currentTimeMillis() < deadline) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            Thread.sleep(20)
+        }
+
+        vm.selectRetouchTool(RetouchType.EYE_POP)
+        vm.setBrushRadius(22f)
+        vm.setBrushIntensity(0.45f)
+        vm.setBrushHardness(0.82f)
+        vm.selectRetouchTool(RetouchType.GLOW)
+        assertEquals(RetouchType.GLOW.defaultRadius, vm.uiState.value.brushRadius, 0.01f)
+        vm.selectRetouchTool(RetouchType.EYE_POP)
+        assertEquals(22f, vm.uiState.value.brushRadius, 0.01f)
+        assertEquals(0.45f, vm.uiState.value.brushIntensity, 0.01f)
+        assertEquals(0.82f, vm.uiState.value.brushHardness, 0.01f)
+
+        vm.selectSculptMode(com.example.model.SculptMode.SLIM)
+        assertEquals(com.example.model.SculptMode.SLIM, vm.uiState.value.sculptMode)
+
+        vm.applyRetouchStroke(listOf(StrokePoint(0.5f, 0.5f)))
+        val strokeWait = System.currentTimeMillis() + 3000L
+        while (!vm.uiState.value.hasRetouchEdits && System.currentTimeMillis() < strokeWait) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            Thread.sleep(20)
+        }
+        assertTrue(vm.uiState.value.hasRetouchEdits)
+
+        vm.resetRetouchLayer()
+        val resetWait = System.currentTimeMillis() + 3000L
+        while (vm.uiState.value.hasRetouchEdits && System.currentTimeMillis() < resetWait) {
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            Thread.sleep(20)
+        }
+        assertTrue(!vm.uiState.value.hasRetouchEdits)
+        vm.undo()
+        assertTrue(vm.uiState.value.hasRetouchEdits)
+    }
 }

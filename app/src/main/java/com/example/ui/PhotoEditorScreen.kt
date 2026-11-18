@@ -253,6 +253,8 @@ fun PhotoEditorScreen(
                     retouchType = uiState.activeRetouchTool,
                     brushRadius = uiState.brushRadius,
                     brushIntensity = uiState.brushIntensity,
+                    brushHardness = uiState.brushHardness,
+                    sculptMode = uiState.sculptMode,
                     isEraser = uiState.isEraser,
                     isComparing = uiState.isComparing,
                     isSplitView = uiState.isSplitView,
@@ -482,11 +484,7 @@ fun PhotoEditorScreen(
                         targetValue = when (uiState.activeTab) {
                             EditorTab.CURVES, EditorTab.COLOR_GRADE -> 296.dp
                             EditorTab.CROP -> 268.dp
-                            EditorTab.RETOUCH -> if (
-                                uiState.isEraser ||
-                                uiState.activeRetouchTool == com.example.model.RetouchType.SKIN_SMOOTH ||
-                                uiState.activeRetouchTool == com.example.model.RetouchType.SCULPT
-                            ) 280.dp else 232.dp
+                            EditorTab.RETOUCH -> 304.dp
                             EditorTab.ADJUST -> if (
                                 uiState.activeAdjustCategory == com.example.model.AdjustCategory.EFFECTS &&
                                 (uiState.adjustments.backgroundBlur > 0f || uiState.adjustments.motionBlurIntensity > 0f)
@@ -569,6 +567,12 @@ fun PhotoEditorScreen(
                                 onToggleEraser = { viewModel.toggleEraser() },
                                 texturePreserve = uiState.texturePreserve,
                                 onTexturePreserveChanged = { viewModel.setTexturePreserve(it) },
+                                brushHardness = uiState.brushHardness,
+                                onHardnessChanged = { viewModel.setBrushHardness(it) },
+                                sculptMode = uiState.sculptMode,
+                                onSelectSculptMode = { viewModel.selectSculptMode(it) },
+                                hasRetouchEdits = uiState.hasRetouchEdits,
+                                onResetRetouch = { viewModel.resetRetouchLayer() },
                                 onAutoSkinSmooth = { viewModel.applyAutoSkinSmoothing() },
                                 onOpenBackgroundBlur = { viewModel.openBackgroundBlurTool() },
                                 lang = lang,
