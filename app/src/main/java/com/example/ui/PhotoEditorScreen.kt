@@ -52,6 +52,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -66,7 +67,6 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VerticalSplit
@@ -220,6 +220,13 @@ fun PhotoEditorScreen(
                 onSave = requestSaveAction
             )
 
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(StudioBorder.copy(alpha = 0.7f))
+            )
+
             // ---------------------------------------------
             // CENTER CANVAS WORKSPACE
             // ---------------------------------------------
@@ -296,37 +303,75 @@ fun PhotoEditorScreen(
                     }
                 }
 
-                // Floating Canvas Save Button (Top Right, hidden during Split View to keep AFTER badge clear)
+                // Top-Right Compact Canvas Metadata & Active Look Pill (replaces duplicate floating Save button)
+                val activeEditsCount = remember(
+                    uiState.activePreset,
+                    uiState.activeLut,
+                    uiState.hasRetouchEdits,
+                    uiState.adjustments,
+                    uiState.colorGrade,
+                    uiState.curves,
+                    uiState.hsl,
+                    uiState.activeFrame
+                ) {
+                    var c = 0
+                    if (uiState.activePreset != com.example.model.FilterPresets.NONE || uiState.activeLut != null) c++
+                    if (uiState.hasRetouchEdits) c++
+                    if (!uiState.adjustments.isDefault) c++
+                    if (!uiState.colorGrade.isDefault) c++
+                    if (!uiState.curves.isDefault) c++
+                    if (!uiState.hsl.isDefault) c++
+                    if (uiState.activeFrame != com.example.model.FrameStyle.NONE) c++
+                    c
+                }
+                val activeBmp = uiState.displayBitmap
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = !uiState.isSplitView,
-                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.90f),
-                    exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.90f),
+                    visible = !uiState.isSplitView && activeBmp != null,
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f),
+                    exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.92f),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(AccentCyan)
-                            .bounceClickable(pressedScale = 0.93f, onClick = requestSaveAction)
-                            .padding(horizontal = 14.dp, vertical = 7.dp)
-                            .testTag("canvas_floating_save_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = AppStrings.save(lang),
-                                tint = Color.Black,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
+                    activeBmp?.let { bmp ->
+                        val lookName = uiState.activeLut?.name
+                            ?: if (uiState.activePreset != com.example.model.FilterPresets.NONE) uiState.activePreset.name else null
+                        val infoLabel = buildString {
+                            append("${bmp.width}×${bmp.height}")
+                            if (lookName != null) {
+                                append(" • ")
+                                append(lookName)
+                            } else if (activeEditsCount > 0) {
+                                append(" • ")
+                                append(AppStrings.activeEditsCount(activeEditsCount, lang))
+                            }
+                        }
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(StudioSurface.copy(alpha = 0.78f))
+                                .border(
+                                    1.dp,
+                                    if (activeEditsCount > 0) AccentCyan.copy(alpha = 0.45f) else StudioBorder,
+                                    RoundedCornerShape(18.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .testTag("canvas_info_badge"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (activeEditsCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(AccentCyan, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
                             Text(
-                                text = AppStrings.save(lang),
-                                color = Color.Black,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = infoLabel,
+                                color = TextPrimary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -369,7 +414,7 @@ fun PhotoEditorScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.ShowChart,
+                                imageVector = Icons.AutoMirrored.Filled.ShowChart,
                                 contentDescription = AppStrings.histogramHud(lang),
                                 tint = if (uiState.showHistogramOverlay) Color.Black else AccentCyan,
                                 modifier = Modifier.size(16.dp)
@@ -480,6 +525,12 @@ fun PhotoEditorScreen(
                     .navigationBarsPadding()
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(StudioBorder.copy(alpha = 0.7f))
+                    )
                     val drawerHeight by animateDpAsState(
                         targetValue = when (uiState.activeTab) {
                             EditorTab.CURVES, EditorTab.COLOR_GRADE -> 296.dp
@@ -634,7 +685,14 @@ fun PhotoEditorScreen(
                         }
                     }
 
-                    // Main Category Tab Row (Scrollable so all 7 tabs stay crisp with generous spacing)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(StudioBorder.copy(alpha = 0.6f))
+                    )
+
+                    // Main Category Tab Row (Scrollable so all 7 tabs stay crisp with active-edit indicators)
                     ScrollableTabRow(
                         selectedTabIndex = uiState.activeTab.ordinal,
                         containerColor = StudioSurfaceVariant,
@@ -651,6 +709,15 @@ fun PhotoEditorScreen(
                     ) {
                         EditorTab.values().forEach { tab ->
                             val isSelected = uiState.activeTab == tab
+                            val hasTabEdits = when (tab) {
+                                EditorTab.FILTERS -> uiState.activePreset != com.example.model.FilterPresets.NONE || uiState.activeLut != null
+                                EditorTab.RETOUCH -> uiState.hasRetouchEdits
+                                EditorTab.ADJUST -> !uiState.adjustments.isDefault
+                                EditorTab.COLOR_GRADE -> !uiState.colorGrade.isDefault
+                                EditorTab.CURVES -> !uiState.curves.isDefault
+                                EditorTab.HSL -> !uiState.hsl.isDefault
+                                EditorTab.CROP -> !uiState.pendingCropRect.isFull || uiState.activeFrame != com.example.model.FrameStyle.NONE
+                            }
                             val tabInteraction = remember { MutableInteractionSource() }
                             val iconScale by animateFloatAsState(
                                 targetValue = if (isSelected) 1.14f else 1f,
@@ -658,7 +725,7 @@ fun PhotoEditorScreen(
                                 label = "tab_icon_scale_${tab.name}"
                             )
                             val tabTint by animateColorAsState(
-                                targetValue = if (isSelected) AccentCyan else TextSecondary,
+                                targetValue = if (isSelected) AccentCyan else if (hasTabEdits) TextPrimary else TextSecondary,
                                 animationSpec = tween(180),
                                 label = "tab_tint_${tab.name}"
                             )
@@ -667,7 +734,7 @@ fun PhotoEditorScreen(
                                 EditorTab.RETOUCH -> Icons.Default.AutoFixHigh
                                 EditorTab.ADJUST -> Icons.Default.Tune
                                 EditorTab.COLOR_GRADE -> Icons.Default.Palette
-                                EditorTab.CURVES -> Icons.Default.ShowChart
+                                EditorTab.CURVES -> Icons.AutoMirrored.Filled.ShowChart
                                 EditorTab.HSL -> Icons.Default.Tune
                                 EditorTab.CROP -> Icons.Default.Crop
                             }
@@ -686,14 +753,26 @@ fun PhotoEditorScreen(
                                 onClick = { viewModel.selectTab(tab) },
                                 interactionSource = tabInteraction,
                                 text = {
-                                    Text(
-                                        text = tabLabel,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = tabTint,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = tabLabel,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected || hasTabEdits) FontWeight.Bold else FontWeight.Normal,
+                                            color = tabTint,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        if (hasTabEdits) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(5.dp)
+                                                    .background(AccentCyan, CircleShape)
+                                            )
+                                        }
+                                    }
                                 },
                                 icon = {
                                     Icon(
@@ -925,21 +1004,34 @@ private fun TopEditorBar(
                 animationSpec = tween(180),
                 label = "split_tint"
             )
+            val splitBg by animateColorAsState(
+                targetValue = if (isSplitView) AccentCyan.copy(alpha = 0.16f) else Color.Transparent,
+                animationSpec = tween(180),
+                label = "split_bg"
+            )
             IconButton(
                 onClick = onToggleSplit,
                 interactionSource = splitInteraction,
                 modifier = Modifier
-                    .width(38.dp)
+                    .width(40.dp)
                     .height(48.dp)
                     .pressBounce(splitInteraction, pressedScale = 0.88f)
                     .testTag("toggle_split_view_button")
             ) {
-                Icon(
-                    imageVector = Icons.Default.VerticalSplit,
-                    contentDescription = AppStrings.splitView(lang),
-                    tint = splitTint,
-                    modifier = Modifier.size(19.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(splitBg),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VerticalSplit,
+                        contentDescription = AppStrings.splitView(lang),
+                        tint = splitTint,
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
             }
         }
 

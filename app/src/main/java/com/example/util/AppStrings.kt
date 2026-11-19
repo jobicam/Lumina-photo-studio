@@ -75,6 +75,8 @@ object AppStrings {
     fun zoomIn(lang: AppLanguage) = if (isKhmer(lang)) "ពង្រីករូប" else "Zoom In"
     fun zoomOut(lang: AppLanguage) = if (isKhmer(lang)) "បង្រួមរូប" else "Zoom Out"
     fun resetZoom(lang: AppLanguage) = if (isKhmer(lang)) "កំណត់ទំហំដើម 1.0x" else "Reset Zoom (1.0x)"
+    fun activeEditsCount(count: Int, lang: AppLanguage): String =
+        if (isKhmer(lang)) "កែសម្រួល $count" else if (count == 1) "1 edit" else "$count edits"
 
     // --- Editor Tabs ---
     fun tabFiltersLabel(lang: AppLanguage) = if (isKhmer(lang)) "តម្រងពណ៌" else "Filters"

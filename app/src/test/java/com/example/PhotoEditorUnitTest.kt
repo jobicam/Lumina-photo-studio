@@ -495,8 +495,8 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.statusCacheClearFailed(km).isNotBlank())
 
         val manifestJson = com.example.processing.AppUpdateChecker.buildVersionManifestJson(
-            versionCode = 16L,
-            versionName = "2.10.0"
+            versionCode = 17L,
+            versionName = "2.10.1"
         )
         assertTrue(manifestJson.contains("Motion Blur"))
         assertTrue(manifestJson.contains("LUT"))

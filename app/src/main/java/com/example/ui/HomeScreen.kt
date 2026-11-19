@@ -34,15 +34,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CameraAlt
@@ -54,7 +55,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
@@ -73,6 +73,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -159,14 +161,57 @@ fun HomeScreen(
         }
     }
 
+    val activeEditsCount = remember(
+        uiState.activePreset,
+        uiState.activeLut,
+        uiState.hasRetouchEdits,
+        uiState.adjustments,
+        uiState.colorGrade,
+        uiState.curves,
+        uiState.hsl,
+        uiState.activeFrame
+    ) {
+        var c = 0
+        if (uiState.activePreset != com.example.model.FilterPresets.NONE || uiState.activeLut != null) c++
+        if (uiState.hasRetouchEdits) c++
+        if (!uiState.adjustments.isDefault) c++
+        if (!uiState.colorGrade.isDefault) c++
+        if (!uiState.curves.isDefault) c++
+        if (!uiState.hsl.isDefault) c++
+        if (uiState.activeFrame != com.example.model.FrameStyle.NONE) c++
+        c
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(StudioBackground)
+            .drawBehind {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(AccentCyan.copy(alpha = 0.09f), Color.Transparent),
+                        center = Offset(size.width * 0.18f, 0f),
+                        radius = size.width * 0.72f
+                    ),
+                    center = Offset(size.width * 0.18f, 0f),
+                    radius = size.width * 0.72f
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(AccentPurple.copy(alpha = 0.07f), Color.Transparent),
+                        center = Offset(size.width * 0.88f, size.height * 0.08f),
+                        radius = size.width * 0.58f
+                    ),
+                    center = Offset(size.width * 0.88f, size.height * 0.08f),
+                    radius = size.width * 0.58f
+                )
+            }
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Column(
             modifier = Modifier
+                .align(Alignment.TopCenter)
+                .widthIn(max = 640.dp)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp)
@@ -332,6 +377,7 @@ fun HomeScreen(
                     Column {
                         ActiveSessionCard(
                             workingBitmap = bmp,
+                            activeEditsCount = activeEditsCount,
                             lang = lang,
                             onResume = { viewModel.navigateTo(AppScreen.EDITOR) },
                             onSave = requestSaveAction
@@ -415,7 +461,7 @@ fun HomeScreen(
                 StudioActionCard(
                     title = com.example.util.AppStrings.curvesAndFilters(lang),
                     subtitle = com.example.util.AppStrings.curvesSubtitle(lang),
-                    icon = Icons.Default.ShowChart,
+                    icon = Icons.AutoMirrored.Filled.ShowChart,
                     accentColor = AccentPurple,
                     onClick = {
                         viewModel.loadSamplePhoto(
@@ -550,7 +596,7 @@ fun HomeScreen(
                 FeatureBanner(
                     title = com.example.util.AppStrings.histogramBannerTitle(lang),
                     description = com.example.util.AppStrings.histogramBannerDesc(lang),
-                    icon = Icons.Default.ShowChart,
+                    icon = Icons.AutoMirrored.Filled.ShowChart,
                     accent = AccentCyan
                 )
 
@@ -564,7 +610,7 @@ fun HomeScreen(
                 FeatureBanner(
                     title = com.example.util.AppStrings.curvesTitle(lang),
                     description = com.example.util.AppStrings.curvesDesc(lang),
-                    icon = Icons.Default.ShowChart,
+                    icon = Icons.AutoMirrored.Filled.ShowChart,
                     accent = Color(0xFF69F0AE)
                 )
 
@@ -579,16 +625,22 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(96.dp))
         }
 
-        // Bottom Navigation Bar
-        NavigationBar(
-            containerColor = StudioCard,
-            contentColor = TextPrimary,
-            tonalElevation = 8.dp,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .testTag("home_bottom_navigation")
+        // Bottom Navigation Bar with subtle top studio hairline divider
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter)
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(StudioBorder)
+            )
+            NavigationBar(
+                containerColor = StudioSurface,
+                contentColor = TextPrimary,
+                tonalElevation = 0.dp,
+                modifier = Modifier.testTag("home_bottom_navigation")
+            ) {
             NavigationBarItem(
                 selected = true,
                 onClick = { /* Already on Studio Home */ },
@@ -636,6 +688,7 @@ fun HomeScreen(
                     unselectedTextColor = TextSecondary
                 )
             )
+        }
         }
 
         // Live Camera Capture Fullscreen View
@@ -723,6 +776,7 @@ fun HomeScreen(
 @Composable
 private fun ActiveSessionCard(
     workingBitmap: Bitmap,
+    activeEditsCount: Int,
     lang: com.example.model.AppLanguage,
     onResume: () -> Unit,
     onSave: () -> Unit
@@ -730,22 +784,22 @@ private fun ActiveSessionCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(
                 Brush.linearGradient(
                     listOf(StudioCard, StudioSurfaceVariant)
                 )
             )
-            .border(1.dp, AccentCyan.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+            .border(1.dp, AccentCyan.copy(alpha = 0.42f), RoundedCornerShape(18.dp))
             .bounceClickable(pressedScale = 0.97f, onClick = onResume)
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(54.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
+                .size(56.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, AccentCyan.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
         ) {
             Image(
                 bitmap = workingBitmap.asImageBitmap(),
@@ -758,21 +812,39 @@ private fun ActiveSessionCard(
         Spacer(modifier = Modifier.width(14.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(7.dp)
                         .background(AccentCyan, CircleShape)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = com.example.util.AppStrings.activeSession(lang),
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = AccentCyan
+                    color = AccentCyan,
+                    letterSpacing = 0.7.sp
                 )
+                if (activeEditsCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(AccentCyan.copy(alpha = 0.16f))
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            text = com.example.util.AppStrings.activeEditsCount(activeEditsCount, lang),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccentCyan
+                        )
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = com.example.util.AppStrings.continueEditing(lang),
                 fontSize = 15.sp,
@@ -781,14 +853,14 @@ private fun ActiveSessionCard(
             )
             Text(
                 text = "${workingBitmap.width} × ${workingBitmap.height} px",
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 color = TextSecondary
             )
         }
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // Direct Save to Gallery button
             val saveInteraction = remember { MutableInteractionSource() }
@@ -819,13 +891,13 @@ private fun ActiveSessionCard(
             // Resume Edit button
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(38.dp)
                     .clip(CircleShape)
                     .background(AccentCyan),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.ArrowForward,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Resume",
                     tint = Color.Black,
                     modifier = Modifier.size(18.dp)
@@ -846,17 +918,29 @@ private fun StudioActionCard(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(StudioCard)
-            .border(1.dp, StudioBorder, RoundedCornerShape(16.dp))
+            .drawBehind {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(accentColor.copy(alpha = 0.10f), Color.Transparent),
+                        center = Offset(36.dp.toPx(), 36.dp.toPx()),
+                        radius = 84.dp.toPx()
+                    ),
+                    center = Offset(36.dp.toPx(), 36.dp.toPx()),
+                    radius = 84.dp.toPx()
+                )
+            }
+            .border(1.dp, StudioBorder, RoundedCornerShape(18.dp))
             .bounceClickable(pressedScale = 0.95f, onClick = onClick)
             .padding(16.dp)
     ) {
         Box(
             modifier = Modifier
                 .size(42.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(accentColor.copy(alpha = 0.15f)),
+                .clip(RoundedCornerShape(12.dp))
+                .background(accentColor.copy(alpha = 0.16f))
+                .border(1.dp, accentColor.copy(alpha = 0.30f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -873,7 +957,8 @@ private fun StudioActionCard(
             text = title,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1
         )
 
         Spacer(modifier = Modifier.height(2.dp))
@@ -881,7 +966,8 @@ private fun StudioActionCard(
         Text(
             text = subtitle,
             fontSize = 11.sp,
-            color = TextSecondary
+            color = TextSecondary,
+            maxLines = 1
         )
     }
 }
@@ -915,14 +1001,27 @@ private fun SamplePhotoHomeCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
+            // Subtle bottom gradient vignette for contrast
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))
+                        )
+                    )
+            )
             // Badge tag
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(6.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color.Black.copy(alpha = 0.7f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .background(Color.Black.copy(alpha = 0.72f))
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = badge,

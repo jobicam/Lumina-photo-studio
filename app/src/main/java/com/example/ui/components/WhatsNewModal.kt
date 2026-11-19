@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
@@ -43,7 +44,6 @@ import androidx.compose.material.icons.filled.MotionPhotosOn
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.SaveAlt
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.TouchApp
@@ -221,7 +221,7 @@ fun WhatsNewModal(
                 }
             }
 
-            // Section 1: CURRENT VERSION HIGHLIGHT (v2.10.0)
+            // Section 1: CURRENT VERSION HIGHLIGHT (v2.10.1)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -239,7 +239,7 @@ fun WhatsNewModal(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — ពណ៌ភាពយន្ត, Bokeh & LUTs" else "What's New in v$versionName — Pro Optics & Colour Studio",
+                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — Retouch Studio & UI/UX ប្រណីត" else "What's New in v$versionName — Retouch Upgrade & Studio UI",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = AccentCyan
@@ -250,33 +250,33 @@ fun WhatsNewModal(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 WhatsNewItem(
-                    icon = Icons.Default.MotionPhotosOn,
-                    iconTint = AccentCyan,
-                    title = if (isKhmer) "Motion Blur (ទាំងមូល, ផ្ទៃក្រោយ ឬ ប្រធានបទ)" else "Dynamic Motion Blur & Optical Depth Bokeh",
-                    description = if (isKhmer)
-                        "បន្ថែមចលនាតាមទិសដៅលើទិដ្ឋភាពទាំងមូល ផ្ទៃក្រោយ ឬប្រធានបទ រួមជាមួយពន្លឺ Depth Lens Bokeh ធម្មជាតិ។"
-                    else
-                        "Directional motion trails targeting Scene, Background, or Subject alongside realistic circular Depth Lens Bokeh & highlight bloom."
-                )
-
-                WhatsNewItem(
-                    icon = Icons.Default.Palette,
+                    icon = Icons.Default.AutoFixHigh,
                     iconTint = AccentPink,
-                    title = if (isKhmer) "Colour Grade — កង់ពណ៌ភាពយន្ត ៣ កម្រិត" else "3-Way Colour Grade Tonal Wheels",
+                    title = if (isKhmer) "ស្ទូឌីយោ Retouch កម្រិតខ្ពស់ & គែមជក់ទន់" else "Upgraded Retouch Engine, Sculpt & Live Brush Trail",
                     description = if (isKhmer)
-                        "កែពណ៌បែបភាពយន្តជាមួយកង់ពណ៌ Shadows, Midtones និង Highlights ព្រមទាំងតុល្យភាពពន្លឺ។"
+                        "បន្ថែមមុខងារគែមជក់ (Edge) ម៉ូដ Nudge/Slim/Plump ការចងចាំការកំណត់តាមឧបករណ៍ និងបន្ទាត់គូសផ្ទាល់។"
                     else
-                        "Style photos cinematically with interactive Shadows, Midtones & Highlights color wheels, luminance, and tonal balance."
+                        "New brush edge hardness control, Nudge/Slim/Plump sculpt modes, per-tool remembered settings, dual-ring nib cursor & live stroke trail."
                 )
 
                 WhatsNewItem(
-                    icon = Icons.Default.LensBlur,
-                    iconTint = AccentPurple,
-                    title = if (isKhmer) "Presets & 3D LUTs (.cube / .json)" else "Custom Presets & 3D LUTs (.cube / .json)",
+                    icon = Icons.Default.TouchApp,
+                    iconTint = AccentCyan,
+                    title = if (isKhmer) "ការកែលម្អ UI/UX ស្ទូឌីយោ & សញ្ញាបង្ហាញការកែ" else "Refined Studio UI/UX & Active Edit Indicators",
                     description = if (isKhmer)
-                        "រក្សាទុក Preset ផ្ទាល់ខ្លួន នាំចូល 3D LUT (.cube) និងចែករំលែកម៉ូដពណ៌ទៅមិត្តភក្តិ។"
+                        "ផ្ទាំងជូនដំណឹង Frosted កាតពណ៌តម្រង Gradient សញ្ញាផ្ទាំងកែសកម្ម និងចុចលើតម្លៃដើម្បីកំណត់ឡើងវិញ។"
                     else
-                        "Save your complete edit stack as custom presets, apply built-in or imported .cube 3D LUTs, and share looks with others."
+                        "Frosted in-app status banner, tonal gradient filter swatches, active-edit tab dots, canvas info pill, and tap-to-reset slider values."
+                )
+
+                WhatsNewItem(
+                    icon = Icons.Default.MotionPhotosOn,
+                    iconTint = AccentPurple,
+                    title = if (isKhmer) "Motion Blur, Depth Bokeh, Colour Grade & LUTs" else "Pro Optics, Colour Grade Wheels & 3D LUTs",
+                    description = if (isKhmer)
+                        "Motion Blur តាមទិសដៅ Depth Lens Bokeh កង់ពណ៌ភាពយន្ត ៣ កម្រិត និងការនាំចូល 3D LUT (.cube)។"
+                    else
+                        "Includes v2.10 directional Motion Blur, circular Depth Lens Bokeh, 3-way Colour Grade wheels, and custom Presets & .cube LUTs."
                 )
             }
 
@@ -332,6 +332,13 @@ fun WhatsNewModal(
                 Column {
                     Spacer(modifier = Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WhatsNewItem(
+                            icon = Icons.Default.Palette,
+                            iconTint = AccentCyan,
+                            title = "v2.10.0: Motion Blur, Depth Lens Bokeh, Colour Grade & LUTs",
+                            description = "Directional Motion Blur (Scene/Background/Subject), optical circular bokeh, 3-way tonal wheels, and custom Presets & 3D .cube LUTs."
+                        )
+
                         WhatsNewItem(
                             icon = Icons.Default.TouchApp,
                             iconTint = AccentCyan,
@@ -396,7 +403,7 @@ fun WhatsNewModal(
                     )
 
                     WhatsNewItem(
-                        icon = Icons.Default.ShowChart,
+                        icon = Icons.AutoMirrored.Filled.ShowChart,
                         iconTint = AccentCyan,
                         title = "v2.0.0: Pro Tonal Engine & Live RGB Histogram HUD",
                         description = "Live RGB + Luminance histogram HUD, Curves histogram underlay, Highlights/Shadows/Whites/Blacks/Clarity/Sharpness, and Rule-of-Thirds grid."

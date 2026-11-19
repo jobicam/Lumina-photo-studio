@@ -1,7 +1,7 @@
 {
-  "versionCode": 15,
-  "versionName": "2.9.0",
-  "releaseNotes": "Smooth layout transitions with directional screen slides, animated editor drawers, spring button press feedback, and built-in GitHub release update checking.",
+  "versionCode": 17,
+  "versionName": "2.10.1",
+  "releaseNotes": "Upgraded Retouch Studio (hardness, per-tool memory, Slim/Plump/Nudge sculpt, live brush trail), frosted UI/UX polish, active edit indicators, Motion Blur, Depth Lens Bokeh, Colour Grade, and Presets & 3D LUTs.",
   "downloadUrl": "",
   "mandatory": false
 }

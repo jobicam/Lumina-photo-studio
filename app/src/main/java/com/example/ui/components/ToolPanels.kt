@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Check
@@ -46,7 +47,6 @@ import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -311,6 +312,21 @@ private fun FilterItemCard(
         animationSpec = tween(180),
         label = "filter_card_border"
     )
+    val swatchColors = remember(preset.id, preset.category) {
+        when {
+            preset.id == "none" -> listOf(Color(0xFF3E4756), Color(0xFF232834))
+            preset.isSepia -> listOf(Color(0xFFC28E5C), Color(0xFF5D3410))
+            preset.isGrayscale && preset.id == "high_contrast" -> listOf(Color(0xFFE0E0E0), Color(0xFF141414))
+            preset.isGrayscale -> listOf(Color(0xFF8E939D), Color(0xFF2B2E35))
+            preset.category == FilterCategory.PORTRAIT -> listOf(Color(0xFFF3B59B), Color(0xFF9C5E53))
+            preset.category == FilterCategory.CINEMATIC -> listOf(Color(0xFF00B4D8), Color(0xFF14284B))
+            preset.category == FilterCategory.VINTAGE -> listOf(Color(0xFFD7A86E), Color(0xFF6B4226))
+            preset.category == FilterCategory.BLACK_WHITE -> listOf(Color(0xFFA6A6A6), Color(0xFF1E1E1E))
+            preset.category == FilterCategory.AESTHETIC -> listOf(Color(0xFFC77DFF), Color(0xFF4C2A85))
+            preset.category == FilterCategory.LANDSCAPE -> listOf(Color(0xFF4CAF50), Color(0xFF14452F))
+            else -> listOf(Color(0xFF546E7A), Color(0xFF263238))
+        }
+    }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -329,26 +345,13 @@ private fun FilterItemCard(
     ) {
         Box(
             modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(
-                    when {
-                        preset.isSepia -> Color(0xFF704214)
-                        preset.isGrayscale -> Color(0xFF424242)
-                        preset.id == "high_contrast" -> Color(0xFF1A1A1A)
-                        preset.category == FilterCategory.PORTRAIT -> Color(0xFFD49A89)
-                        preset.category == FilterCategory.CINEMATIC -> Color(0xFF1E3A5F)
-                        preset.category == FilterCategory.VINTAGE -> Color(0xFF8D6E63)
-                        preset.category == FilterCategory.BLACK_WHITE -> Color(0xFF424242)
-                        preset.category == FilterCategory.AESTHETIC -> Color(0xFF9575CD)
-                        preset.category == FilterCategory.LANDSCAPE -> Color(0xFF2E7D32)
-                        else -> Color(0xFF37474F)
-                    }
-                )
+                .size(62.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Brush.linearGradient(swatchColors))
                 .border(
                     width = if (isSelected) 2.dp else 1.dp,
                     color = borderColor,
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -356,7 +359,8 @@ private fun FilterItemCard(
                 text = preset.name.take(3).uppercase(),
                 color = Color.White,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.6.sp
             )
             androidx.compose.animation.AnimatedVisibility(
                 visible = isSelected,
@@ -728,6 +732,7 @@ private fun AdjustSliderItem(
 ) {
     val haptics = LocalHapticFeedback.current
     var lastStep by remember(testTagKey) { mutableIntStateOf(value.toInt()) }
+    val isModified = kotlin.math.abs(value - defaultValue) >= 0.5f
 
     Row(
         modifier = Modifier
@@ -735,13 +740,26 @@ private fun AdjustSliderItem(
             .padding(horizontal = 16.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = TextSecondary,
-            maxLines = 1,
-            modifier = Modifier.width(86.dp)
-        )
+        Row(
+            modifier = Modifier.width(88.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isModified) {
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .background(AccentCyan, CircleShape)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+            }
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = if (isModified) TextPrimary else TextSecondary,
+                fontWeight = if (isModified) FontWeight.Medium else FontWeight.Normal,
+                maxLines = 1
+            )
+        }
         Slider(
             value = value,
             onValueChange = { v ->
@@ -763,18 +781,26 @@ private fun AdjustSliderItem(
                 .weight(1f)
                 .testTag("slider_$testTagKey")
         )
-        Text(
-            text = "${if (value > 0 && range.start < 0f) "+" else ""}${value.toInt()}",
-            fontSize = 12.sp,
-            color = if (value != defaultValue) AccentCyan else TextSecondary,
-            fontWeight = if (value != defaultValue) FontWeight.Bold else FontWeight.Normal,
+        Box(
             modifier = Modifier
-                .width(40.dp)
-                .clickable {
+                .width(44.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (isModified) AccentCyan.copy(alpha = 0.14f) else Color.Transparent)
+                .clickable(enabled = isModified) {
                     onValueChange(defaultValue)
                     onEditFinished()
                 }
-        )
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Text(
+                text = "${if (value > 0 && range.start < 0f) "+" else ""}${value.toInt()}",
+                fontSize = 12.sp,
+                color = if (isModified) AccentCyan else TextSecondary,
+                fontWeight = if (isModified) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1
+            )
+        }
     }
 }
 
@@ -1082,7 +1108,7 @@ fun CropPanel(
                     .pressBounce(rotateInteraction, pressedScale = 0.93f)
                     .testTag("rotate_button")
             ) {
-                Icon(imageVector = Icons.Default.RotateRight, contentDescription = AppStrings.rotate90(lang), tint = AccentCyan)
+                Icon(imageVector = Icons.AutoMirrored.Filled.RotateRight, contentDescription = AppStrings.rotate90(lang), tint = AccentCyan)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(AppStrings.rotate90(lang), color = TextPrimary, fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
