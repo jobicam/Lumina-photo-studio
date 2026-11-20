@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.R
 import com.example.model.AdjustCategory
 import com.example.model.AdjustmentState
+import com.example.model.ApkDownloadState
 import com.example.model.AppLanguage
 import com.example.model.ColorGradeState
 import com.example.model.ColorGradeTone
@@ -146,6 +147,7 @@ data class EditorUiState(
     val showHistogramOverlay: Boolean = false,
     // App Update Checker & Upgrade Migration state (v2.4 - v2.5)
     val updateStatus: UpdateStatus = UpdateStatus.Idle,
+    val apkDownloadState: ApkDownloadState = ApkDownloadState.Idle,
     val lastUpdateCheckMillis: Long = 0L,
     val showUpdateDialog: Boolean = false,
     val upgradedFromVersion: String? = null
@@ -169,6 +171,7 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
 
     private var renderJob: Job? = null
     private var updateCheckJob: Job? = null
+    private var apkDownloadJob: Job? = null
     private val bitmapMutex = Mutex()
     private var continuousEditSnapshotted = false
     private val retouchToolSettings = mutableMapOf<RetouchType, RetouchToolSettings>()
@@ -289,9 +292,11 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
 
     fun checkForUpdates(openDialog: Boolean = true) {
         updateCheckJob?.cancel()
+        apkDownloadJob?.cancel()
         _uiState.update {
             it.copy(
                 updateStatus = UpdateStatus.Checking,
+                apkDownloadState = ApkDownloadState.Idle,
                 showUpdateDialog = if (openDialog) true else it.showUpdateDialog
             )
         }
@@ -311,6 +316,93 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 )
             }
         }
+    }
+
+    fun downloadAndInstallUpdate(onReadyToInstall: (File) -> Unit) {
+        val currentState = _uiState.value
+        val existingReady = currentState.apkDownloadState as? ApkDownloadState.ReadyToInstall
+        if (existingReady != null) {
+            val cachedFile = File(existingReady.apkFilePath)
+            if (AppUpdateChecker.isValidApkFile(cachedFile)) {
+                onReadyToInstall(cachedFile)
+                return
+            }
+        }
+
+        val available = currentState.updateStatus as? UpdateStatus.UpdateAvailable ?: return
+        if (available.downloadUrl.isBlank()) return
+        if (currentState.apkDownloadState is ApkDownloadState.Downloading) return
+
+        apkDownloadJob?.cancel()
+        _uiState.update {
+            it.copy(
+                apkDownloadState = ApkDownloadState.Downloading(
+                    bytesDownloaded = 0L,
+                    totalBytes = -1L,
+                    progress = null
+                )
+            )
+        }
+
+        val appCtx = getApplication<Application>()
+        apkDownloadJob = viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                AppUpdateChecker.downloadApkUpdate(
+                    context = appCtx,
+                    downloadUrl = available.downloadUrl,
+                    versionName = available.latestVersionName,
+                    isCancelled = { apkDownloadJob?.isActive != true },
+                    onProgress = { downloaded, total ->
+                        val frac = if (total > 0L) (downloaded.toFloat() / total.toFloat()).coerceIn(0f, 1f) else null
+                        _uiState.update {
+                            it.copy(
+                                apkDownloadState = ApkDownloadState.Downloading(
+                                    bytesDownloaded = downloaded,
+                                    totalBytes = total,
+                                    progress = frac
+                                )
+                            )
+                        }
+                    }
+                )
+            }
+
+            result.fold(
+                onSuccess = { apkFile ->
+                    _uiState.update {
+                        it.copy(
+                            apkDownloadState = ApkDownloadState.ReadyToInstall(
+                                apkFilePath = apkFile.absolutePath,
+                                fileSizeBytes = apkFile.length()
+                            )
+                        )
+                    }
+                    onReadyToInstall(apkFile)
+                },
+                onFailure = { err ->
+                    if (err is java.util.concurrent.CancellationException) {
+                        _uiState.update { it.copy(apkDownloadState = ApkDownloadState.Idle) }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                apkDownloadState = ApkDownloadState.Failed(
+                                    err.localizedMessage ?: "Failed to download APK update"
+                                )
+                            )
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    fun cancelApkDownload() {
+        apkDownloadJob?.cancel()
+        apkDownloadJob = null
+        viewModelScope.launch(Dispatchers.IO) {
+            AppUpdateChecker.cleanupPartialApkDownloads(getApplication())
+        }
+        _uiState.update { it.copy(apkDownloadState = ApkDownloadState.Idle) }
     }
 
     fun dismissUpdateDialog() {

@@ -889,4 +889,70 @@ class PhotoEditorRobolectricTest {
         vm.undo()
         assertTrue(vm.uiState.value.hasRetouchEdits)
     }
+
+    @Test
+    fun testInAppApkUpdateHelpers_urlValidationApkSignatureAndFileProviderIntent() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        // 1. Direct APK URL detection
+        assertTrue(
+            com.example.processing.AppUpdateChecker.isDirectApkUrl(
+                "https://github.com/jobicam/Lumina-photo-studio/releases/download/v2.10.1/app-release.apk"
+            )
+        )
+        assertTrue(
+            com.example.processing.AppUpdateChecker.isDirectApkUrl(
+                "https://cdn.example.com/lumina.apk?dl=1#mirror"
+            )
+        )
+        assertTrue(
+            !com.example.processing.AppUpdateChecker.isDirectApkUrl(
+                "https://github.com/jobicam/Lumina-photo-studio/releases/tag/v2.10.1"
+            )
+        )
+
+        // 2. APK magic header validation (PK\x03\x04) vs invalid HTML/empty file
+        val updatesDir = java.io.File(context.cacheDir, "updates").apply { mkdirs() }
+        val validApk = java.io.File(updatesDir, "lumina-update-2.10.1.apk")
+        validApk.writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00))
+        assertTrue(com.example.processing.AppUpdateChecker.isValidApkFile(validApk))
+
+        val htmlFile = java.io.File(updatesDir, "error.apk")
+        htmlFile.writeText("<html><body>404 Not Found</body></html>")
+        assertTrue(!com.example.processing.AppUpdateChecker.isValidApkFile(htmlFile))
+
+        val partialFile = java.io.File(updatesDir, "lumina-update-2.10.1.apk.part")
+        partialFile.writeBytes(byteArrayOf(0x50, 0x4B))
+        com.example.processing.AppUpdateChecker.cleanupPartialApkDownloads(context)
+        assertTrue(!partialFile.exists())
+
+        // 3. FileProvider package-installer Intent
+        val installIntent = com.example.processing.AppUpdateChecker.createInstallApkIntent(context, validApk)
+        assertEquals(android.content.Intent.ACTION_VIEW, installIntent.action)
+        assertEquals("application/vnd.android.package-archive", installIntent.type)
+        assertTrue(
+            (installIntent.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0
+        )
+        val uriString = installIntent.data?.toString().orEmpty()
+        assertTrue(
+            "Expected FileProvider URI under apk_updates path, got: $uriString",
+            uriString.startsWith("content://${context.packageName}.fileprovider/apk_updates/")
+        )
+
+        // 4. Unknown sources permission settings Intent targets app package on API 26+
+        val permissionIntent = com.example.processing.AppUpdateChecker.createManageUnknownSourcesIntent(context)
+        assertEquals(
+            android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            permissionIntent.action
+        )
+        assertEquals("package:${context.packageName}", permissionIntent.data?.toString())
+
+        // 5. Invalid download URL fails safely
+        val badResult = com.example.processing.AppUpdateChecker.downloadApkUpdate(
+            context = context,
+            downloadUrl = "ftp://example.com/bad.apk",
+            versionName = "2.10.1"
+        )
+        assertTrue(badResult.isFailure)
+    }
 }

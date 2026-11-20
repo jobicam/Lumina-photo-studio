@@ -724,8 +724,11 @@ fun HomeScreen(
                 updateStatus = uiState.updateStatus,
                 lastCheckedMillis = uiState.lastUpdateCheckMillis,
                 lang = lang,
+                apkDownloadState = uiState.apkDownloadState,
                 onCheckAgain = { viewModel.checkForUpdates(openDialog = true) },
                 onOpenWhatsNew = { showWhatsNew = true },
+                onDownloadAndInstall = { onReady -> viewModel.downloadAndInstallUpdate(onReady) },
+                onCancelDownload = { viewModel.cancelApkDownload() },
                 onDismiss = { viewModel.dismissUpdateDialog() }
             )
         }

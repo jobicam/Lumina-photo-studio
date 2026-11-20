@@ -35,3 +35,22 @@ sealed class UpdateStatus {
         val checkedAtMillis: Long
     ) : UpdateStatus()
 }
+
+sealed class ApkDownloadState {
+    data object Idle : ApkDownloadState()
+
+    data class Downloading(
+        val bytesDownloaded: Long,
+        val totalBytes: Long,
+        val progress: Float?
+    ) : ApkDownloadState()
+
+    data class ReadyToInstall(
+        val apkFilePath: String,
+        val fileSizeBytes: Long
+    ) : ApkDownloadState()
+
+    data class Failed(
+        val message: String
+    ) : ApkDownloadState()
+}

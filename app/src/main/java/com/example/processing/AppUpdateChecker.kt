@@ -1,8 +1,13 @@
 package com.example.processing
 
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import com.example.BuildConfig
 import com.example.model.UpdateManifest
@@ -12,6 +17,9 @@ import com.squareup.moshi.Types
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeUnit
 
 object AppUpdateChecker {
@@ -39,6 +47,15 @@ object AppUpdateChecker {
         OkHttpClient.Builder()
             .connectTimeout(8, TimeUnit.SECONDS)
             .readTimeout(8, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val downloadClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
             .build()
     }
 
@@ -447,6 +464,172 @@ object AppUpdateChecker {
             }
         } else {
             "Update manifest not found at the configured release feed (HTTP 404)."
+        }
+    }
+
+    fun isDirectApkUrl(url: String): Boolean {
+        val cleanUrl = url.trim().substringBefore('?').substringBefore('#')
+        return cleanUrl.endsWith(".apk", ignoreCase = true)
+    }
+
+    fun isValidApkFile(file: File): Boolean {
+        if (!file.exists() || file.length() < 4L) return false
+        return try {
+            file.inputStream().use { input ->
+                val header = ByteArray(4)
+                val read = input.read(header)
+                read == 4 &&
+                    header[0] == 0x50.toByte() && // 'P'
+                    header[1] == 0x4B.toByte() && // 'K'
+                    header[2] == 0x03.toByte() &&
+                    header[3] == 0x04.toByte()
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun canInstallPackages(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching { context.packageManager.canRequestPackageInstalls() }.getOrDefault(false)
+        } else {
+            true
+        }
+    }
+
+    fun createManageUnknownSourcesIntent(context: Context): Intent {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}")
+            )
+        } else {
+            Intent(Settings.ACTION_SECURITY_SETTINGS)
+        }
+    }
+
+    fun createInstallApkIntent(context: Context, apkFile: File): Intent {
+        val apkUri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            apkFile
+        )
+        return Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(apkUri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
+    fun cleanupPartialApkDownloads(context: Context) {
+        runCatching {
+            val updatesDir = File(context.cacheDir, "updates")
+            if (updatesDir.exists()) {
+                updatesDir.listFiles()?.forEach { f ->
+                    if (f.name.endsWith(".part")) f.delete()
+                }
+            }
+        }
+    }
+
+    fun downloadApkUpdate(
+        context: Context,
+        downloadUrl: String,
+        versionName: String = "",
+        isCancelled: () -> Boolean = { false },
+        onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit = { _, _ -> }
+    ): Result<File> {
+        val trimmedUrl = downloadUrl.trim()
+        if (!trimmedUrl.startsWith("https://", ignoreCase = true) &&
+            !trimmedUrl.startsWith("http://", ignoreCase = true)
+        ) {
+            return Result.failure(IllegalArgumentException("Invalid APK download URL"))
+        }
+
+        if (!isNetworkAvailable(context)) {
+            return Result.failure(IllegalStateException("No internet connection detected"))
+        }
+
+        val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
+        // Remove previous update files to prevent cache bloat
+        updatesDir.listFiles()?.forEach { it.delete() }
+
+        val safeVer = versionName.trim().replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "latest" }
+        val partFile = File(updatesDir, "lumina-update-$safeVer.apk.part")
+        val targetFile = File(updatesDir, "lumina-update-$safeVer.apk")
+
+        return try {
+            val request = Request.Builder()
+                .url(trimmedUrl)
+                .header("Accept", "application/vnd.android.package-archive, application/octet-stream, */*")
+                .header("User-Agent", "LuminaPhoto/${BuildConfig.VERSION_NAME}")
+                .get()
+                .build()
+
+            downloadClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return Result.failure(IllegalStateException("Download failed (HTTP ${response.code})"))
+                }
+                val contentType = response.header("Content-Type").orEmpty().lowercase()
+                if (contentType.contains("text/html")) {
+                    return Result.failure(
+                        IllegalStateException("Release link returned a web page instead of an APK file.")
+                    )
+                }
+
+                val body = response.body
+                    ?: return Result.failure(IllegalStateException("Empty download response"))
+
+                val totalBytes = body.contentLength()
+                var downloaded = 0L
+                var lastReportedBytes = 0L
+                val buffer = ByteArray(16 * 1024)
+
+                onProgress(0L, totalBytes)
+
+                body.byteStream().use { input ->
+                    FileOutputStream(partFile).use { output ->
+                        while (true) {
+                            if (isCancelled()) {
+                                throw CancellationException("Download cancelled")
+                            }
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            output.write(buffer, 0, read)
+                            downloaded += read
+                            if (downloaded - lastReportedBytes >= 32 * 1024L ||
+                                (totalBytes > 0L && downloaded >= totalBytes)
+                            ) {
+                                lastReportedBytes = downloaded
+                                onProgress(downloaded, totalBytes)
+                            }
+                        }
+                        output.flush()
+                    }
+                }
+                onProgress(downloaded, totalBytes)
+            }
+
+            if (!isValidApkFile(partFile)) {
+                partFile.delete()
+                return Result.failure(
+                    IllegalStateException("Downloaded file is not a valid Android APK package.")
+                )
+            }
+
+            if (targetFile.exists()) targetFile.delete()
+            if (!partFile.renameTo(targetFile)) {
+                partFile.copyTo(targetFile, overwrite = true)
+                partFile.delete()
+            }
+
+            Result.success(targetFile)
+        } catch (ce: CancellationException) {
+            partFile.delete()
+            Result.failure(ce)
+        } catch (e: Exception) {
+            partFile.delete()
+            Result.failure(e)
         }
     }
 }
