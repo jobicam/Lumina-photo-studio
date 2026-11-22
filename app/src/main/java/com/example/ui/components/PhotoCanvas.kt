@@ -59,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -72,6 +73,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -79,6 +81,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AppLanguage
+import com.example.model.CropGridStyle
 import com.example.model.CropRect
 import com.example.model.HistogramData
 import com.example.model.RetouchType
@@ -117,6 +120,8 @@ fun PhotoCanvas(
     isCropMode: Boolean = false,
     cropRect: CropRect = CropRect(),
     lockedCropRatio: Float? = null,
+    straightenDegrees: Float = 0f,
+    cropGridStyle: CropGridStyle = CropGridStyle.RULE_OF_THIRDS,
     isBlurFocusMode: Boolean = false,
     blurFocusX: Float = 0.50f,
     blurFocusY: Float = 0.42f,
@@ -357,15 +362,47 @@ fun PhotoCanvas(
                 val showBmp = if (isComparing && originalBitmap != null) originalBitmap else displayBitmap
 
                 if (!isSplitView || originalBitmap == null) {
-                    // Standard Single View
-                    Image(
-                        bitmap = showBmp.asImageBitmap(),
-                        contentDescription = "Edited photo",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("main_display_photo"),
-                        contentScale = ContentScale.Fit
-                    )
+                    // Standard Single View (with corner-safe straighten preview when Crop Mode is active)
+                    val applyStraightenPreview = isCropMode && !isComparing && abs(straightenDegrees) >= 0.05f
+                    if (applyStraightenPreview) {
+                        val density = LocalDensity.current
+                        val renderWDp = with(density) { renderW.toDp() }
+                        val renderHDp = with(density) { renderH.toDp() }
+                        val autoScale = CropRect.straightenAutoScale(
+                            angleDegrees = straightenDegrees,
+                            width = showBmp.width,
+                            height = showBmp.height
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(renderWDp, renderHDp)
+                                .clipToBounds()
+                        ) {
+                            Image(
+                                bitmap = showBmp.asImageBitmap(),
+                                contentDescription = "Edited photo",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        rotationZ = straightenDegrees
+                                        scaleX = autoScale
+                                        scaleY = autoScale
+                                    }
+                                    .testTag("main_display_photo"),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                    } else {
+                        Image(
+                            bitmap = showBmp.asImageBitmap(),
+                            contentDescription = "Edited photo",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("main_display_photo"),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
                 } else {
                     // Split Before/After View
                     val splitX = containerWidth * splitRatio
@@ -578,6 +615,8 @@ fun PhotoCanvas(
                     InteractiveCropOverlay(
                         cropRect = cropRect,
                         lockedCropRatio = lockedCropRatio,
+                        straightenDegrees = straightenDegrees,
+                        cropGridStyle = cropGridStyle,
                         imgLeft = imgLeft,
                         imgTop = imgTop,
                         renderW = renderW,
@@ -850,6 +889,8 @@ private enum class CropDragHandle {
 private fun InteractiveCropOverlay(
     cropRect: CropRect,
     lockedCropRatio: Float?,
+    straightenDegrees: Float,
+    cropGridStyle: CropGridStyle,
     imgLeft: Float,
     imgTop: Float,
     renderW: Float,
@@ -961,14 +1002,39 @@ private fun InteractiveCropOverlay(
                 style = Stroke(width = 1.5.dp.toPx())
             )
 
-            // Rule of Thirds interior lines
-            val gridColor = Color.White.copy(alpha = 0.42f)
+            // Crop Interior Guide Lines (Rule of Thirds / Golden Ratio / 4x4 Grid / Off)
+            val gridColor = Color.White.copy(alpha = 0.44f)
             val gridStroke = 1.dp.toPx()
-            for (i in 1..2) {
-                val gx = cLeft + cW * (i / 3f)
+            val fractions = when (cropGridStyle) {
+                CropGridStyle.RULE_OF_THIRDS -> listOf(1f / 3f, 2f / 3f)
+                CropGridStyle.GOLDEN_RATIO -> listOf(0.382f, 0.618f)
+                CropGridStyle.SQUARE_GRID -> listOf(0.25f, 0.50f, 0.75f)
+                CropGridStyle.NONE -> emptyList()
+            }
+            for (f in fractions) {
+                val gx = cLeft + cW * f
                 drawLine(gridColor, Offset(gx, cTop), Offset(gx, cBottom), strokeWidth = gridStroke)
-                val gy = cTop + cH * (i / 3f)
+                val gy = cTop + cH * f
                 drawLine(gridColor, Offset(cLeft, gy), Offset(cRight, gy), strokeWidth = gridStroke)
+            }
+
+            // Subtle horizon leveling guide when straightening
+            if (abs(straightenDegrees) >= 0.1f) {
+                val midX = (cLeft + cRight) / 2f
+                val midY = (cTop + cBottom) / 2f
+                val crossArm = min(cW, cH) * 0.16f
+                drawLine(
+                    color = AccentCyan.copy(alpha = 0.75f),
+                    start = Offset(midX - crossArm, midY),
+                    end = Offset(midX + crossArm, midY),
+                    strokeWidth = 1.4.dp.toPx()
+                )
+                drawLine(
+                    color = AccentCyan.copy(alpha = 0.75f),
+                    start = Offset(midX, midY - crossArm * 0.45f),
+                    end = Offset(midX, midY + crossArm * 0.45f),
+                    strokeWidth = 1.4.dp.toPx()
+                )
             }
 
             // Corner L-brackets
@@ -998,7 +1064,13 @@ private fun InteractiveCropOverlay(
             drawLine(Color.White, Offset(cRight, midY - edgeBarLen / 2f), Offset(cRight, midY + edgeBarLen / 2f), strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
         }
 
-        // Live crop dimensions badge (top-center)
+        // Live crop dimensions & straighten readout badge (top-center)
+        val badgeText = if (abs(straightenDegrees) >= 0.1f) {
+            val sign = if (straightenDegrees > 0f) "+" else ""
+            "$cropWpx × $cropHpx px • $sign${String.format(Locale.US, "%.1f", straightenDegrees)}°"
+        } else {
+            "$cropWpx × $cropHpx px"
+        }
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -1010,7 +1082,7 @@ private fun InteractiveCropOverlay(
                 .testTag("crop_dimensions_badge")
         ) {
             Text(
-                text = "$cropWpx × $cropHpx px",
+                text = badgeText,
                 color = AccentCyan,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold

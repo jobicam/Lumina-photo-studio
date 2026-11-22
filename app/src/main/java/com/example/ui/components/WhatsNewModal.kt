@@ -221,7 +221,7 @@ fun WhatsNewModal(
                 }
             }
 
-            // Section 1: CURRENT VERSION HIGHLIGHT (v2.10.1)
+            // Section 1: CURRENT VERSION HIGHLIGHT (v2.11.0)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -239,7 +239,7 @@ fun WhatsNewModal(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — Retouch Studio & UI/UX ប្រណីត" else "What's New in v$versionName — Retouch Upgrade & Studio UI",
+                    text = if (isKhmer) "កំណែថ្មី v$versionName (Build $versionCode) — លំដាប់ផ្ទាំងកែ Crop & ការកំណត់ថ្មី" else "What's New in v$versionName — Custom Tabs, Crop Studio & Settings",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = AccentCyan
@@ -250,33 +250,33 @@ fun WhatsNewModal(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 WhatsNewItem(
-                    icon = Icons.Default.AutoFixHigh,
-                    iconTint = AccentPink,
-                    title = if (isKhmer) "ស្ទូឌីយោ Retouch កម្រិតខ្ពស់ & គែមជក់ទន់" else "Upgraded Retouch Engine, Sculpt & Live Brush Trail",
-                    description = if (isKhmer)
-                        "បន្ថែមមុខងារគែមជក់ (Edge) ម៉ូដ Nudge/Slim/Plump ការចងចាំការកំណត់តាមឧបករណ៍ និងបន្ទាត់គូសផ្ទាល់។"
-                    else
-                        "New brush edge hardness control, Nudge/Slim/Plump sculpt modes, per-tool remembered settings, dual-ring nib cursor & live stroke trail."
-                )
-
-                WhatsNewItem(
-                    icon = Icons.Default.TouchApp,
+                    icon = Icons.Default.Crop,
                     iconTint = AccentCyan,
-                    title = if (isKhmer) "ការកែលម្អ UI/UX ស្ទូឌីយោ & សញ្ញាបង្ហាញការកែ" else "Refined Studio UI/UX & Active Edit Indicators",
+                    title = if (isKhmer) "ស្ទូឌីយោ Crop & តម្រង់ជួរ -45°..+45° ថ្មី" else "Upgraded Crop & Straighten Studio",
                     description = if (isKhmer)
-                        "ផ្ទាំងជូនដំណឹង Frosted កាតពណ៌តម្រង Gradient សញ្ញាផ្ទាំងកែសកម្ម និងចុចលើតម្លៃដើម្បីកំណត់ឡើងវិញ។"
+                        "បន្ថែមប៊ូតុងបង្វិល -90°/+90° រំកិលតម្រង់ជួរ -45°..+45° ប្តូរទិសដៅ Portrait/Landscape និងក្រឡាជំនួយ (3×3, Golden, 4×4)។"
                     else
-                        "Frosted in-app status banner, tonal gradient filter swatches, active-edit tab dots, canvas info pill, and tap-to-reset slider values."
+                        "Rotate -90°/+90°, live -45°..+45° Straighten slider with corner-safe auto-scale, Portrait/Landscape ratio swap, and selectable grid guides."
                 )
 
                 WhatsNewItem(
-                    icon = Icons.Default.MotionPhotosOn,
+                    icon = Icons.Default.GridOn,
                     iconTint = AccentPurple,
-                    title = if (isKhmer) "Motion Blur, Depth Bokeh, Colour Grade & LUTs" else "Pro Optics, Colour Grade Wheels & 3D LUTs",
+                    title = if (isKhmer) "រៀបចំលំដាប់ផ្ទាំងឧបករណ៍តាមចិត្ត" else "Reorderable Editor Tabs & Improved Settings",
                     description = if (isKhmer)
-                        "Motion Blur តាមទិសដៅ Depth Lens Bokeh កង់ពណ៌ភាពយន្ត ៣ កម្រិត និងការនាំចូល 3D LUT (.cube)។"
+                        "ផ្លាស់ប្តូរលំដាប់ផ្ទាំងកែរូបភាពតាមតម្រូវការក្នុងការកំណត់ ឬម៉ឺនុយ ព្រមទាំងការរក្សាទុក Session ក្រឡា Crop លំនាំដើម និងកំណត់ឡើងវិញ។"
                     else
-                        "Includes v2.10 directional Motion Blur, circular Depth Lens Bokeh, 3-way Colour Grade wheels, and custom Presets & .cube LUTs."
+                        "Customize your editor tab order from the toolbar menu or Settings, configure default Crop Grid & session recovery, and reset preferences anytime."
+                )
+
+                WhatsNewItem(
+                    icon = Icons.Default.SystemUpdate,
+                    iconTint = AccentPink,
+                    title = if (isKhmer) "ទាញយក និងដំឡើងបច្ចុប្បន្នភាពក្នុងកម្មវិធីផ្ទាល់" else "Direct In-App APK Download & Installer",
+                    description = if (isKhmer)
+                        "ទាញយកឯកសារ APK ថ្មីដោយផ្ទាល់ជាមួយរបារវឌ្ឍនភាព និងបើកដំឡើងភ្លាមៗក្នុងកម្មវិធី។"
+                    else
+                        "Download GitHub release APKs inside Lumina with live progress tracking, PK verification, and one-tap system package install."
                 )
             }
 
@@ -332,6 +332,13 @@ fun WhatsNewModal(
                 Column {
                     Spacer(modifier = Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WhatsNewItem(
+                            icon = Icons.Default.AutoFixHigh,
+                            iconTint = AccentPink,
+                            title = "v2.10.1: Retouch Upgrade & Refined Studio UI/UX",
+                            description = "Brush edge hardness, Nudge/Slim/Plump sculpt modes, per-tool memory, frosted banners, tonal gradient swatches, and active edit dots."
+                        )
+
                         WhatsNewItem(
                             icon = Icons.Default.Palette,
                             iconTint = AccentCyan,

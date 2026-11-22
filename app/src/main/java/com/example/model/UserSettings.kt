@@ -1,6 +1,7 @@
 package com.example.model
 
 import com.example.processing.AppUpdateChecker
+import com.example.viewmodel.EditorTab
 
 enum class AppLanguage(val code: String, val displayName: String, val nativeName: String) {
     SYSTEM("system", "System Default", "តាមប្រព័ន្ធ"),
@@ -23,5 +24,39 @@ data class UserSettings(
     val hapticFeedback: Boolean = true,
     val autoSaveDrafts: Boolean = true,
     val autoCheckUpdates: Boolean = true,
-    val updateFeedUrl: String = AppUpdateChecker.DEFAULT_UPDATE_FEED_URL
-)
+    val updateFeedUrl: String = AppUpdateChecker.DEFAULT_UPDATE_FEED_URL,
+    val editorTabOrder: List<EditorTab> = DEFAULT_EDITOR_TAB_ORDER,
+    val defaultCropGridStyle: CropGridStyle = CropGridStyle.RULE_OF_THIRDS
+) {
+    companion object {
+        val DEFAULT_EDITOR_TAB_ORDER: List<EditorTab> = listOf(
+            EditorTab.FILTERS,
+            EditorTab.CROP,
+            EditorTab.ADJUST,
+            EditorTab.RETOUCH,
+            EditorTab.COLOR_GRADE,
+            EditorTab.CURVES,
+            EditorTab.HSL
+        )
+
+        fun normalizeTabOrder(raw: List<EditorTab>): List<EditorTab> {
+            val distinct = raw.distinct().toMutableList()
+            DEFAULT_EDITOR_TAB_ORDER.forEach { tab ->
+                if (tab !in distinct) distinct.add(tab)
+            }
+            return distinct
+        }
+
+        fun serializeTabOrder(tabs: List<EditorTab>): String =
+            normalizeTabOrder(tabs).joinToString(",") { it.name }
+
+        fun parseTabOrder(raw: String?): List<EditorTab> {
+            if (raw.isNullOrBlank()) return DEFAULT_EDITOR_TAB_ORDER
+            val parsed = raw.split(",")
+                .mapNotNull { token ->
+                    EditorTab.values().firstOrNull { it.name == token.trim() }
+                }
+            return normalizeTabOrder(parsed)
+        }
+    }
+}

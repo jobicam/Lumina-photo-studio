@@ -1,7 +1,7 @@
 {
-  "versionCode": 17,
-  "versionName": "2.10.1",
-  "releaseNotes": "Upgraded Retouch Studio (hardness, per-tool memory, Slim/Plump/Nudge sculpt, live brush trail), frosted UI/UX polish, active edit indicators, Motion Blur, Depth Lens Bokeh, Colour Grade, and Presets & 3D LUTs.",
+  "versionCode": 18,
+  "versionName": "2.11.0",
+  "releaseNotes": "Customisable Editor Tab Order (reorder tabs & stamps), Upgraded Crop & Straighten Studio (-90/+90 rotate, -45..+45 straighten, orientation swap, crop grids), Enhanced Settings (session recovery, default crop grid, reset all), and direct in-app APK updates.",
   "downloadUrl": "",
   "mandatory": false
 }

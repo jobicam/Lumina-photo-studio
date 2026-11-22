@@ -19,6 +19,13 @@ enum class FrameStyle(val label: String) {
     OBSIDIAN("Obsidian")
 }
 
+enum class CropGridStyle(val label: String) {
+    RULE_OF_THIRDS("3×3"),
+    GOLDEN_RATIO("Golden"),
+    SQUARE_GRID("Grid"),
+    NONE("Off")
+}
+
 data class CropRect(
     val left: Float = 0f,
     val top: Float = 0f,
@@ -43,24 +50,32 @@ data class CropRect(
         fun effectiveRatio(
             bitmapWidth: Int,
             bitmapHeight: Int,
-            aspectRatio: CropAspectRatio
+            aspectRatio: CropAspectRatio,
+            invertOrientation: Boolean = false
         ): Float? {
-            return when (aspectRatio) {
+            val base = when (aspectRatio) {
                 CropAspectRatio.FREE -> null
                 CropAspectRatio.ORIGINAL -> if (bitmapWidth > 0 && bitmapHeight > 0) {
                     bitmapWidth.toFloat() / bitmapHeight.toFloat()
                 } else null
                 else -> aspectRatio.ratio
-            }
+            } ?: return null
+            return if (invertOrientation && base > 0f) 1f / base else base
         }
 
         fun fittedForAspectRatio(
             bitmapWidth: Int,
             bitmapHeight: Int,
-            aspectRatio: CropAspectRatio
+            aspectRatio: CropAspectRatio,
+            invertOrientation: Boolean = false
         ): CropRect {
             if (bitmapWidth <= 0 || bitmapHeight <= 0) return CropRect()
-            val targetRatio = effectiveRatio(bitmapWidth, bitmapHeight, aspectRatio) ?: return CropRect()
+            val targetRatio = effectiveRatio(
+                bitmapWidth = bitmapWidth,
+                bitmapHeight = bitmapHeight,
+                aspectRatio = aspectRatio,
+                invertOrientation = invertOrientation
+            ) ?: return CropRect()
             val imgRatio = bitmapWidth.toFloat() / bitmapHeight.toFloat()
             if (kotlin.math.abs(imgRatio - targetRatio) <= 0.005f) return CropRect()
 
@@ -81,6 +96,21 @@ data class CropRect(
                 right = left + normW,
                 bottom = top + normH
             )
+        }
+
+        /**
+         * Minimum uniform scale required so an axis-aligned rectangle of size [width] x [height]
+         * rotated around its center by [angleDegrees] remains filled without empty corner gaps.
+         */
+        fun straightenAutoScale(angleDegrees: Float, width: Int, height: Int): Float {
+            if (kotlin.math.abs(angleDegrees) < 0.01f || width <= 0 || height <= 0) return 1f
+            val rad = Math.toRadians(kotlin.math.abs(angleDegrees).toDouble())
+            val cosA = kotlin.math.cos(rad)
+            val sinA = kotlin.math.sin(rad)
+            val w = width.toDouble()
+            val h = height.toDouble()
+            val aspectMax = maxOf(w / h, h / w)
+            return (cosA + sinA * aspectMax).toFloat().coerceAtLeast(1f)
         }
     }
 }

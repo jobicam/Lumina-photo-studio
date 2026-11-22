@@ -8,6 +8,7 @@ import com.example.model.RetouchType
 import com.example.model.StrokePoint
 import com.example.processing.BitmapProcessor
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -322,8 +323,8 @@ class PhotoEditorRobolectricTest {
         assertEquals("https://example.com/version.json", state.settings.updateFeedUrl)
         assertEquals("2.4.0", state.upgradedFromVersion)
         assertEquals(BuildConfig.VERSION_CODE, settingsPrefs.getInt("last_migrated_version_code", 0))
-        assertEquals("2.10.1", BuildConfig.VERSION_NAME)
-        assertEquals(17, BuildConfig.VERSION_CODE)
+        assertEquals("2.11.0", BuildConfig.VERSION_NAME)
+        assertEquals(18, BuildConfig.VERSION_CODE)
     }
 
     @Test
@@ -951,8 +952,94 @@ class PhotoEditorRobolectricTest {
         val badResult = com.example.processing.AppUpdateChecker.downloadApkUpdate(
             context = context,
             downloadUrl = "ftp://example.com/bad.apk",
-            versionName = "2.10.1"
+            versionName = "2.11.0"
         )
         assertTrue(badResult.isFailure)
+    }
+
+    @Test
+    fun testCropStraightenBitmap_and_viewModelCropControls() {
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.viewmodel.PhotoEditorViewModel(app)
+
+        val src = Bitmap.createBitmap(120, 80, Bitmap.Config.ARGB_8888)
+        for (y in 0 until 80) {
+            for (x in 0 until 120) {
+                src.setPixel(x, y, Color.rgb(180, 120, 60))
+            }
+        }
+        vm.loadCapturedBitmap(src)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        // Cycle grid style and persist in preferences cleanly
+        val initialGrid = vm.uiState.value.cropGridStyle
+        vm.cycleCropGridStyle()
+        assertTrue(vm.uiState.value.cropGridStyle != initialGrid)
+
+        // Straighten angle clamps to [-45f, 45f]
+        vm.setPendingStraighten(12.5f)
+        assertEquals(12.5f, vm.uiState.value.pendingStraightenDegrees, 0.001f)
+        vm.setPendingStraighten(99f)
+        assertEquals(45f, vm.uiState.value.pendingStraightenDegrees, 0.001f)
+
+        // Ratio orientation swap updates pending crop rect aspect ratio
+        vm.selectCropRatio(com.example.model.CropAspectRatio.PORTRAIT_4_5)
+        assertFalse(vm.uiState.value.isCropRatioInverted)
+        val portraitRect = vm.uiState.value.pendingCropRect
+        assertTrue(portraitRect.width * 120f < portraitRect.height * 80f || portraitRect.height == 1f)
+
+        vm.swapCropRatioOrientation()
+        assertTrue(vm.uiState.value.isCropRatioInverted)
+
+        // BitmapProcessor.cropAndStraightenBitmap rotates cleanly without transparent corner leaks
+        val straightened = BitmapProcessor.cropAndStraightenBitmap(
+            source = src,
+            cropRect = com.example.model.CropRect(0.1f, 0.1f, 0.9f, 0.9f),
+            straightenDegrees = 10f
+        )
+        assertTrue(straightened.width in 90..100)
+        assertTrue(straightened.height in 60..68)
+        val cornerPixel = straightened.getPixel(0, 0)
+        assertEquals(255, Color.alpha(cornerPixel))
+    }
+
+    @Test
+    fun testTabReordering_and_resetAllSettingsToDefaults() {
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        val vm = com.example.viewmodel.PhotoEditorViewModel(app)
+
+        vm.resetEditorTabOrder()
+        val initialOrder = vm.uiState.value.settings.editorTabOrder
+        assertEquals(com.example.viewmodel.EditorTab.FILTERS, initialOrder[0])
+        assertEquals(com.example.viewmodel.EditorTab.CROP, initialOrder[1])
+
+        // Move CROP up to index 0
+        vm.moveEditorTab(com.example.viewmodel.EditorTab.CROP, -1)
+        val reordered = vm.uiState.value.settings.editorTabOrder
+        assertEquals(com.example.viewmodel.EditorTab.CROP, reordered[0])
+        assertEquals(com.example.viewmodel.EditorTab.FILTERS, reordered[1])
+
+        // Re-create ViewModel to confirm persistence via SharedPreferences
+        val vmReloaded = com.example.viewmodel.PhotoEditorViewModel(app)
+        assertEquals(com.example.viewmodel.EditorTab.CROP, vmReloaded.uiState.value.settings.editorTabOrder[0])
+
+        // Change additional settings then reset everything
+        vmReloaded.updateSettings {
+            it.copy(
+                jpegQuality = 72,
+                defaultCropGridStyle = com.example.model.CropGridStyle.GOLDEN_RATIO,
+                autoSaveDrafts = false
+            )
+        }
+        assertEquals(72, vmReloaded.uiState.value.settings.jpegQuality)
+        assertEquals(com.example.model.CropGridStyle.GOLDEN_RATIO, vmReloaded.uiState.value.settings.defaultCropGridStyle)
+        assertFalse(vmReloaded.uiState.value.settings.autoSaveDrafts)
+
+        vmReloaded.resetAllSettingsToDefaults()
+        val resetState = vmReloaded.uiState.value
+        assertEquals(95, resetState.settings.jpegQuality)
+        assertEquals(com.example.model.CropGridStyle.RULE_OF_THIRDS, resetState.settings.defaultCropGridStyle)
+        assertTrue(resetState.settings.autoSaveDrafts)
+        assertEquals(com.example.model.UserSettings.DEFAULT_EDITOR_TAB_ORDER, resetState.settings.editorTabOrder)
     }
 }

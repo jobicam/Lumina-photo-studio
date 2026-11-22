@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.RotateLeft
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CenterFocusStrong
@@ -46,7 +47,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -77,6 +81,7 @@ import com.example.model.AdjustCategory
 import com.example.model.AdjustmentState
 import com.example.model.AppLanguage
 import com.example.model.CropAspectRatio
+import com.example.model.CropGridStyle
 import com.example.model.CropRect
 import com.example.model.CurveChannel
 import com.example.model.CurvesState
@@ -1069,20 +1074,32 @@ fun HslPanel(
 @Composable
 fun CropPanel(
     onRotate: () -> Unit,
+    onRotateLeft: () -> Unit = {},
     onFlipH: () -> Unit,
     onFlipV: () -> Unit,
     selectedRatio: CropAspectRatio = CropAspectRatio.FREE,
+    isRatioInverted: Boolean = false,
     cropRect: CropRect = CropRect(),
+    straightenDegrees: Float = 0f,
+    cropGridStyle: CropGridStyle = CropGridStyle.RULE_OF_THIRDS,
     onSelectRatio: (CropAspectRatio) -> Unit,
+    onSwapRatioOrientation: () -> Unit = {},
+    onStraightenChanged: (Float) -> Unit = {},
+    onCycleGridStyle: () -> Unit = {},
     onApplyCrop: () -> Unit = {},
     onResetCrop: () -> Unit = {},
     activeFrame: FrameStyle = FrameStyle.NONE,
     onSelectFrame: (FrameStyle) -> Unit = {},
     modifier: Modifier = Modifier,
-    lang: AppLanguage = AppLanguage.SYSTEM
+    lang: AppLanguage = AppLanguage.SYSTEM,
+    hapticFeedback: Boolean = true
 ) {
-    val canApplyCrop = !cropRect.isFull
-    val canResetCrop = !cropRect.isFull || selectedRatio != CropAspectRatio.FREE
+    val hasStraighten = kotlin.math.abs(straightenDegrees) >= 0.1f
+    val canApplyCrop = !cropRect.isFull || hasStraighten
+    val canResetCrop = !cropRect.isFull || hasStraighten || selectedRatio != CropAspectRatio.FREE || isRatioInverted
+    val canSwapOrientation = selectedRatio != CropAspectRatio.FREE && selectedRatio != CropAspectRatio.SQUARE
+    val haptic = LocalHapticFeedback.current
+    var lastHapticHalfDeg by remember { mutableIntStateOf(0) }
 
     Column(
         modifier = modifier
@@ -1091,62 +1108,132 @@ fun CropPanel(
             .padding(vertical = 8.dp)
             .testTag("crop_panel")
     ) {
-        // Transform buttons: Rotate, Flip H, Flip V
+        // Quick Geometry Row: -90°, +90°, Flip H, Flip V
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val rotateInteraction = remember { MutableInteractionSource() }
-            Button(
+            CropGeometryActionChip(
+                icon = Icons.AutoMirrored.Filled.RotateLeft,
+                label = AppStrings.rotateLeft90(lang),
+                onClick = onRotateLeft,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("rotate_left_button")
+            )
+            CropGeometryActionChip(
+                icon = Icons.AutoMirrored.Filled.RotateRight,
+                label = AppStrings.rotateRight90(lang),
                 onClick = onRotate,
-                interactionSource = rotateInteraction,
-                colors = ButtonDefaults.buttonColors(containerColor = StudioCard),
-                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
-                    .pressBounce(rotateInteraction, pressedScale = 0.93f)
+                    .weight(1f)
                     .testTag("rotate_button")
-            ) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.RotateRight, contentDescription = AppStrings.rotate90(lang), tint = AccentCyan)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(AppStrings.rotate90(lang), color = TextPrimary, fontSize = 12.sp, maxLines = 1, softWrap = false)
-            }
-
-            val flipHInteraction = remember { MutableInteractionSource() }
-            Button(
+            )
+            CropGeometryActionChip(
+                icon = Icons.Default.Flip,
+                label = AppStrings.flipH(lang),
                 onClick = onFlipH,
-                interactionSource = flipHInteraction,
-                colors = ButtonDefaults.buttonColors(containerColor = StudioCard),
-                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
-                    .pressBounce(flipHInteraction, pressedScale = 0.93f)
+                    .weight(1f)
                     .testTag("flip_h_button")
-            ) {
-                Icon(imageVector = Icons.Default.Flip, contentDescription = AppStrings.flipH(lang), tint = AccentCyan)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(AppStrings.flipH(lang), color = TextPrimary, fontSize = 12.sp, maxLines = 1, softWrap = false)
-            }
-
-            val flipVInteraction = remember { MutableInteractionSource() }
-            Button(
+            )
+            CropGeometryActionChip(
+                icon = Icons.Default.Flip,
+                label = AppStrings.flipV(lang),
                 onClick = onFlipV,
-                interactionSource = flipVInteraction,
-                colors = ButtonDefaults.buttonColors(containerColor = StudioCard),
-                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
-                    .pressBounce(flipVInteraction, pressedScale = 0.93f)
+                    .weight(1f)
                     .testTag("flip_v_button")
-            ) {
-                Icon(imageVector = Icons.Default.Flip, contentDescription = AppStrings.flipV(lang), tint = AccentCyan)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(AppStrings.flipV(lang), color = TextPrimary, fontSize = 12.sp, maxLines = 1, softWrap = false)
-            }
+            )
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Aspect Ratio Header + Reset / Apply Crop Actions
+        // Fine Straighten Slider (-45° to +45°) with tap-to-reset readout pill
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Straighten,
+                        contentDescription = null,
+                        tint = if (hasStraighten) AccentCyan else TextSecondary,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = AppStrings.straightenLabel(lang),
+                        fontSize = 12.sp,
+                        color = if (hasStraighten) TextPrimary else TextSecondary,
+                        fontWeight = if (hasStraighten) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                }
+
+                val angleText = if (hasStraighten) {
+                    val sign = if (straightenDegrees > 0f) "+" else ""
+                    "$sign${String.format(java.util.Locale.US, "%.1f", straightenDegrees)}°"
+                } else {
+                    "0.0°"
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (hasStraighten) AccentCyan.copy(alpha = 0.16f) else StudioCard)
+                        .border(
+                            1.dp,
+                            if (hasStraighten) AccentCyan.copy(alpha = 0.55f) else StudioBorder,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .bounceClickable(enabled = hasStraighten, pressedScale = 0.90f) {
+                            onStraightenChanged(0f)
+                        }
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .testTag("straighten_value_chip")
+                ) {
+                    Text(
+                        text = angleText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (hasStraighten) AccentCyan else TextSecondary
+                    )
+                }
+            }
+
+            Slider(
+                value = straightenDegrees,
+                onValueChange = { next ->
+                    val halfStep = kotlin.math.round(next * 2f).toInt()
+                    if (hapticFeedback && halfStep != lastHapticHalfDeg) {
+                        lastHapticHalfDeg = halfStep
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    onStraightenChanged(next)
+                },
+                valueRange = -45f..45f,
+                colors = SliderDefaults.colors(
+                    thumbColor = AccentCyan,
+                    activeTrackColor = AccentCyan,
+                    inactiveTrackColor = StudioBorder
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .testTag("straighten_slider")
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Aspect Ratio Header + Swap Orientation + Grid Toggle + Reset / Apply Crop Actions
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1154,14 +1241,81 @@ fun CropPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = AppStrings.aspectRatio(lang),
-                fontSize = 12.sp,
-                color = TextSecondary
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = AppStrings.aspectRatio(lang),
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+
+                // Grid overlay style cycle chip
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(StudioCard)
+                        .border(1.dp, StudioBorder, RoundedCornerShape(10.dp))
+                        .bounceClickable(pressedScale = 0.92f, onClick = onCycleGridStyle)
+                        .padding(horizontal = 7.dp, vertical = 4.dp)
+                        .testTag("crop_grid_cycle_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GridOn,
+                        contentDescription = AppStrings.cropGridLabel(lang),
+                        tint = if (cropGridStyle != CropGridStyle.NONE) AccentCyan else TextSecondary,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = AppStrings.cropGridStyleLabel(cropGridStyle, lang),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (cropGridStyle != CropGridStyle.NONE) TextPrimary else TextSecondary
+                    )
+                }
+
+                // Portrait / Landscape orientation swap chip
+                AnimatedVisibility(
+                    visible = canSwapOrientation,
+                    enter = fadeIn(tween(150)) + scaleIn(initialScale = 0.85f),
+                    exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.85f)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isRatioInverted) AccentCyan.copy(alpha = 0.16f) else StudioCard)
+                            .border(
+                                1.dp,
+                                if (isRatioInverted) AccentCyan else StudioBorder,
+                                RoundedCornerShape(10.dp)
+                            )
+                            .bounceClickable(pressedScale = 0.92f, onClick = onSwapRatioOrientation)
+                            .padding(horizontal = 7.dp, vertical = 4.dp)
+                            .testTag("swap_crop_orientation_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = AppStrings.swapOrientationLabel(lang),
+                            tint = AccentCyan,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = AppStrings.swapOrientationLabel(lang),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AccentCyan
+                        )
+                    }
+                }
+            }
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AnimatedVisibility(
@@ -1175,7 +1329,7 @@ fun CropPanel(
                             .background(StudioCard)
                             .border(1.dp, StudioBorder, RoundedCornerShape(12.dp))
                             .bounceClickable(pressedScale = 0.92f, onClick = onResetCrop)
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                            .padding(horizontal = 9.dp, vertical = 5.dp)
                             .testTag("reset_crop_button")
                     ) {
                         Text(
@@ -1209,7 +1363,7 @@ fun CropPanel(
                             shape = RoundedCornerShape(12.dp)
                         )
                         .bounceClickable(enabled = canApplyCrop, pressedScale = 0.93f, onClick = onApplyCrop)
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                        .padding(horizontal = 11.dp, vertical = 5.dp)
                         .testTag("apply_crop_button")
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1255,6 +1409,12 @@ fun CropPanel(
                     animationSpec = tween(160),
                     label = "ratio_border_${r.name}"
                 )
+                val baseLabel = AppStrings.cropRatioLabel(r, lang)
+                val chipLabel = if (isSelected && isRatioInverted && baseLabel.contains(':')) {
+                    baseLabel.split(':').reversed().joinToString(":")
+                } else {
+                    baseLabel
+                }
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
@@ -1269,7 +1429,7 @@ fun CropPanel(
                         .testTag("crop_ratio_${r.name.lowercase()}")
                 ) {
                     Text(
-                        text = AppStrings.cropRatioLabel(r, lang),
+                        text = chipLabel,
                         color = if (isSelected) Color.Black else AccentCyan,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -1358,6 +1518,42 @@ fun CropPanel(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CropGeometryActionChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(StudioCard)
+            .border(1.dp, StudioBorder, RoundedCornerShape(11.dp))
+            .bounceClickable(pressedScale = 0.93f, onClick = onClick)
+            .padding(horizontal = 6.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = AccentCyan,
+            modifier = Modifier.size(15.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = label,
+            color = TextPrimary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
 

@@ -1168,6 +1168,100 @@ object BitmapProcessor {
     }
 
     /**
+     * Applies fine straightening [straightenDegrees] around image center with automatic corner-safe scaling,
+     * then crops to [cropRect] in a single crisp bilinear pass.
+     */
+    fun cropAndStraightenBitmap(
+        source: Bitmap,
+        cropRect: com.example.model.CropRect,
+        straightenDegrees: Float = 0f
+    ): Bitmap {
+        if (kotlin.math.abs(straightenDegrees) < 0.05f) {
+            return cropBitmap(source, cropRect)
+        }
+        val w = source.width
+        val h = source.height
+        if (w <= 1 || h <= 1) return source
+
+        val minPx = 16.coerceAtMost(min(w, h))
+        val leftPx = (cropRect.left.coerceIn(0f, 1f) * w)
+            .roundToInt()
+            .coerceIn(0, (w - minPx).coerceAtLeast(0))
+        val topPx = (cropRect.top.coerceIn(0f, 1f) * h)
+            .roundToInt()
+            .coerceIn(0, (h - minPx).coerceAtLeast(0))
+        val rightPx = (cropRect.right.coerceIn(0f, 1f) * w)
+            .roundToInt()
+            .coerceIn((leftPx + minPx).coerceAtMost(w), w)
+        val bottomPx = (cropRect.bottom.coerceIn(0f, 1f) * h)
+            .roundToInt()
+            .coerceIn((topPx + minPx).coerceAtMost(h), h)
+        val cropW = (rightPx - leftPx).coerceAtLeast(1)
+        val cropH = (bottomPx - topPx).coerceAtLeast(1)
+
+        val scale = com.example.model.CropRect.straightenAutoScale(
+            angleDegrees = straightenDegrees,
+            width = w,
+            height = h
+        ) * 1.002f
+        val rad = Math.toRadians(straightenDegrees.toDouble())
+        val cosOverScale = (cos(rad) / scale).toFloat()
+        val sinOverScale = (sin(rad) / scale).toFloat()
+        val cx = (w - 1) / 2f
+        val cy = (h - 1) / 2f
+        val maxX = (w - 1).toFloat()
+        val maxY = (h - 1).toFloat()
+
+        val srcPixels = IntArray(w * h)
+        source.getPixels(srcPixels, 0, w, 0, 0, w, h)
+        val dstPixels = IntArray(cropW * cropH)
+
+        for (oy in 0 until cropH) {
+            val ry = (topPx + oy) - cy
+            val rowOffset = oy * cropW
+            for (ox in 0 until cropW) {
+                val rx = (leftPx + ox) - cx
+                val sx = (cx + rx * cosOverScale + ry * sinOverScale).coerceIn(0f, maxX)
+                val sy = (cy - rx * sinOverScale + ry * cosOverScale).coerceIn(0f, maxY)
+
+                val x0 = sx.toInt().coerceIn(0, w - 1)
+                val y0 = sy.toInt().coerceIn(0, h - 1)
+                val x1 = (x0 + 1).coerceAtMost(w - 1)
+                val y1 = (y0 + 1).coerceAtMost(h - 1)
+                val fx = sx - x0
+                val fy = sy - y0
+                val invFx = 1f - fx
+                val invFy = 1f - fy
+
+                val c00 = srcPixels[y0 * w + x0]
+                val c10 = srcPixels[y0 * w + x1]
+                val c01 = srcPixels[y1 * w + x0]
+                val c11 = srcPixels[y1 * w + x1]
+
+                val w00 = invFx * invFy
+                val w10 = fx * invFy
+                val w01 = invFx * fy
+                val w11 = fx * fy
+
+                val a = (((c00 ushr 24) and 0xFF) * w00 + ((c10 ushr 24) and 0xFF) * w10 +
+                    ((c01 ushr 24) and 0xFF) * w01 + ((c11 ushr 24) and 0xFF) * w11).roundToInt().coerceIn(0, 255)
+                val r = (((c00 ushr 16) and 0xFF) * w00 + ((c10 ushr 16) and 0xFF) * w10 +
+                    ((c01 ushr 16) and 0xFF) * w01 + ((c11 ushr 16) and 0xFF) * w11).roundToInt().coerceIn(0, 255)
+                val g = (((c00 ushr 8) and 0xFF) * w00 + ((c10 ushr 8) and 0xFF) * w10 +
+                    ((c01 ushr 8) and 0xFF) * w01 + ((c11 ushr 8) and 0xFF) * w11).roundToInt().coerceIn(0, 255)
+                val b = ((c00 and 0xFF) * w00 + (c10 and 0xFF) * w10 +
+                    (c01 and 0xFF) * w01 + (c11 and 0xFF) * w11).roundToInt().coerceIn(0, 255)
+
+                dstPixels[rowOffset + ox] = (a shl 24) or (r shl 16) or (g shl 8) or b
+            }
+        }
+
+        val output = Bitmap.createBitmap(cropW, cropH, Bitmap.Config.ARGB_8888)
+        output.setPixels(dstPixels, 0, cropW, 0, 0, cropW, cropH)
+        return output
+    }
+
+    /**
      * Builds a ColorMatrix for authentic photographic Sepia toning.
      */
     fun getSepiaColorMatrix(intensity: Float = 1.0f): ColorMatrix {

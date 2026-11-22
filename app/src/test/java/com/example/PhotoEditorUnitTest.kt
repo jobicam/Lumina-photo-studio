@@ -160,7 +160,7 @@ class PhotoEditorUnitTest {
         assertTrue(FilterPresets.ALL_PRESETS.any { it.id == "obsidian_gold" })
         assertTrue(FilterPresets.ALL_PRESETS.any { it.id == "dream_halation" })
         assertTrue(FilterPresets.ALL_PRESETS.any { it.id == "alpine_crisp" })
-        assertEquals("Apply Crop", com.example.util.AppStrings.applyCrop(en))
+        assertEquals("Apply", com.example.util.AppStrings.applyCrop(en))
         assertTrue(com.example.util.AppStrings.applyCrop(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.resetCrop(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.statusCropApplied(km).isNotBlank())
@@ -273,7 +273,7 @@ class PhotoEditorUnitTest {
         assertTrue(com.example.util.AppStrings.skinSmoothBannerTitle(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.skinSmoothBannerDesc(km).isNotBlank())
-        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.10"))
+        assertTrue(com.example.util.AppStrings.studioCapabilities(en).contains("2.11"))
         assertTrue(com.example.util.AppStrings.zoomIn(en).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomIn(km).isNotBlank())
         assertTrue(com.example.util.AppStrings.zoomOut(en).isNotBlank())
@@ -647,6 +647,69 @@ class PhotoEditorUnitTest {
             assertEquals(tool.defaultHardness, defaults.hardness, 0.001f)
             assertTrue(com.example.util.AppStrings.retouchProTip(tool, en).isNotBlank())
             assertTrue(com.example.util.AppStrings.retouchProTip(tool, km).isNotBlank())
+        }
+    }
+
+    @Test
+    fun testTabReorder_cropStraightenAndV211BilingualStrings() {
+        // Default tab order prioritizes CROP early
+        val defaultOrder = com.example.model.UserSettings.DEFAULT_EDITOR_TAB_ORDER
+        assertEquals(com.example.viewmodel.EditorTab.values().size, defaultOrder.size)
+        assertEquals(com.example.viewmodel.EditorTab.FILTERS, defaultOrder[0])
+        assertEquals(com.example.viewmodel.EditorTab.CROP, defaultOrder[1])
+
+        // Parsing handles duplicates, partial lists, and unknown names safely
+        val parsed = com.example.model.UserSettings.parseTabOrder("HSL,CROP,HSL,UNKNOWN_TAB,FILTERS")
+        assertEquals(com.example.viewmodel.EditorTab.values().size, parsed.size)
+        assertEquals(com.example.viewmodel.EditorTab.HSL, parsed[0])
+        assertEquals(com.example.viewmodel.EditorTab.CROP, parsed[1])
+        assertEquals(com.example.viewmodel.EditorTab.FILTERS, parsed[2])
+        assertEquals(parsed.toSet(), com.example.viewmodel.EditorTab.values().toSet())
+
+        val serialized = com.example.model.UserSettings.serializeTabOrder(parsed)
+        assertEquals(parsed, com.example.model.UserSettings.parseTabOrder(serialized))
+
+        // Crop ratio inversion swaps portrait/landscape ratio cleanly
+        val ratio45 = com.example.model.CropAspectRatio.PORTRAIT_4_5
+        assertEquals(0.8f, com.example.model.CropRect.effectiveRatio(1000, 1000, ratio45, invertOrientation = false)!!, 0.001f)
+        assertEquals(1.25f, com.example.model.CropRect.effectiveRatio(1000, 1000, ratio45, invertOrientation = true)!!, 0.001f)
+        assertEquals(null, com.example.model.CropRect.effectiveRatio(1000, 1000, com.example.model.CropAspectRatio.FREE, invertOrientation = true))
+
+        // Straighten auto-scale ensures corners stay filled and scales up as angle grows
+        assertEquals(1f, com.example.model.CropRect.straightenAutoScale(0f, 1000, 800), 0.001f)
+        val scale15 = com.example.model.CropRect.straightenAutoScale(15f, 1000, 800)
+        val scale30 = com.example.model.CropRect.straightenAutoScale(30f, 1000, 800)
+        assertTrue("15deg auto-scale should exceed 1.0f, was $scale15", scale15 > 1.15f)
+        assertTrue("30deg auto-scale should exceed 15deg, was $scale30 vs $scale15", scale30 > scale15)
+
+        // Bilingual EN & KM strings for v2.11 crop/settings/reorder
+        val en = com.example.model.AppLanguage.ENGLISH
+        val km = com.example.model.AppLanguage.KHMER
+        listOf(
+            com.example.util.AppStrings.rotateLeft90(en) to com.example.util.AppStrings.rotateLeft90(km),
+            com.example.util.AppStrings.rotateRight90(en) to com.example.util.AppStrings.rotateRight90(km),
+            com.example.util.AppStrings.straightenLabel(en) to com.example.util.AppStrings.straightenLabel(km),
+            com.example.util.AppStrings.swapOrientationLabel(en) to com.example.util.AppStrings.swapOrientationLabel(km),
+            com.example.util.AppStrings.cropGridLabel(en) to com.example.util.AppStrings.cropGridLabel(km),
+            com.example.util.AppStrings.editorToolbarSection(en) to com.example.util.AppStrings.editorToolbarSection(km),
+            com.example.util.AppStrings.reorderTabsTitle(en) to com.example.util.AppStrings.reorderTabsTitle(km),
+            com.example.util.AppStrings.resetSettingsLabel(en) to com.example.util.AppStrings.resetSettingsLabel(km),
+            com.example.util.AppStrings.autoSaveDraftsLabel(en) to com.example.util.AppStrings.autoSaveDraftsLabel(km),
+            com.example.util.AppStrings.settingsCategoryAll(en) to com.example.util.AppStrings.settingsCategoryAll(km),
+            com.example.util.AppStrings.settingsCategoryExport(en) to com.example.util.AppStrings.settingsCategoryExport(km),
+            com.example.util.AppStrings.settingsCategoryStudio(en) to com.example.util.AppStrings.settingsCategoryStudio(km),
+            com.example.util.AppStrings.settingsCategorySystem(en) to com.example.util.AppStrings.settingsCategorySystem(km),
+            com.example.util.AppStrings.studioProfileTitle(en) to com.example.util.AppStrings.studioProfileTitle(km),
+            com.example.util.AppStrings.resetConfirmTitle(en) to com.example.util.AppStrings.resetConfirmTitle(km),
+            com.example.util.AppStrings.resetConfirmBody(en) to com.example.util.AppStrings.resetConfirmBody(km),
+            com.example.util.AppStrings.qualityTierLabel(95, en) to com.example.util.AppStrings.qualityTierLabel(95, km)
+        ).forEach { (enStr, kmStr) ->
+            assertTrue(enStr.isNotBlank())
+            assertTrue(kmStr.isNotBlank())
+        }
+        com.example.model.CropGridStyle.values().forEach { style ->
+            assertTrue(com.example.util.AppStrings.cropGridStyleLabel(style, en).isNotBlank())
+            assertTrue(com.example.util.AppStrings.cropGridStyleLabel(style, km).isNotBlank())
         }
     }
 }

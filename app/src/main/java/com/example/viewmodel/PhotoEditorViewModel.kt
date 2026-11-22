@@ -18,6 +18,7 @@ import com.example.model.ColorGradeState
 import com.example.model.ColorGradeTone
 import com.example.model.ColorWheelValue
 import com.example.model.CropAspectRatio
+import com.example.model.CropGridStyle
 import com.example.model.CropRect
 import com.example.model.CurveChannel
 import com.example.model.CurvesState
@@ -117,7 +118,10 @@ data class EditorUiState(
     val lutIntensity: Float = 1.0f,
     val transform: TransformState = TransformState(),
     val selectedCropRatio: CropAspectRatio = CropAspectRatio.FREE,
+    val isCropRatioInverted: Boolean = false,
     val pendingCropRect: CropRect = CropRect(),
+    val pendingStraightenDegrees: Float = 0f,
+    val cropGridStyle: CropGridStyle = CropGridStyle.RULE_OF_THIRDS,
     val activeFrame: FrameStyle = FrameStyle.NONE,
     // Retouch state
     val activeRetouchTool: RetouchType = RetouchType.SKIN_SMOOTH,
@@ -157,9 +161,11 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
 
     private val prefs = application.getSharedPreferences("lumina_settings_prefs", Context.MODE_PRIVATE)
     private val versionPrefs = application.getSharedPreferences("lumina_version_prefs", Context.MODE_PRIVATE)
+    private val initialSettings = loadSettings()
     private val _uiState = MutableStateFlow(
         EditorUiState(
-            settings = loadSettings(),
+            settings = initialSettings,
+            cropGridStyle = initialSettings.defaultCropGridStyle,
             lastUpdateCheckMillis = prefs.getLong("last_update_check_ms", 0L),
             upgradedFromVersion = migrateFromOlderVersionIfNeeded(application)
         )
@@ -246,6 +252,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         val lang = AppLanguage.values().firstOrNull { it.code == langCode } ?: AppLanguage.SYSTEM
         val fmtName = prefs.getString("export_format", ExportFormat.JPEG.name)
         val fmt = ExportFormat.values().firstOrNull { it.name == fmtName } ?: ExportFormat.JPEG
+        val gridName = prefs.getString("default_crop_grid_style", CropGridStyle.RULE_OF_THIRDS.name)
+        val gridStyle = CropGridStyle.values().firstOrNull { it.name == gridName } ?: CropGridStyle.RULE_OF_THIRDS
+        val tabOrder = UserSettings.parseTabOrder(prefs.getString("editor_tab_order", null))
         return UserSettings(
             appLanguage = lang,
             exportFormat = fmt,
@@ -258,7 +267,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             autoCheckUpdates = prefs.getBoolean("auto_check_updates", true),
             updateFeedUrl = prefs.getString("update_feed_url", null)
                 ?.takeIf { it.isNotBlank() }
-                ?: AppUpdateChecker.DEFAULT_UPDATE_FEED_URL
+                ?: AppUpdateChecker.DEFAULT_UPDATE_FEED_URL,
+            editorTabOrder = tabOrder,
+            defaultCropGridStyle = gridStyle
         )
     }
 
@@ -274,6 +285,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
             .putBoolean("auto_save_drafts", s.autoSaveDrafts)
             .putBoolean("auto_check_updates", s.autoCheckUpdates)
             .putString("update_feed_url", s.updateFeedUrl)
+            .putString("editor_tab_order", UserSettings.serializeTabOrder(s.editorTabOrder))
+            .putString("default_crop_grid_style", s.defaultCropGridStyle.name)
             .apply()
     }
 
@@ -286,8 +299,54 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
 
     fun updateSettings(update: (UserSettings) -> UserSettings) {
         val updated = update(_uiState.value.settings)
-        persistSettings(updated)
-        _uiState.update { it.copy(settings = updated) }
+        val normalized = updated.copy(
+            editorTabOrder = UserSettings.normalizeTabOrder(updated.editorTabOrder)
+        )
+        persistSettings(normalized)
+        _uiState.update {
+            it.copy(
+                settings = normalized,
+                cropGridStyle = if (updated.defaultCropGridStyle != _uiState.value.settings.defaultCropGridStyle) {
+                    normalized.defaultCropGridStyle
+                } else {
+                    it.cropGridStyle
+                }
+            )
+        }
+    }
+
+    fun moveEditorTab(tab: EditorTab, delta: Int) {
+        if (delta == 0) return
+        val currentOrder = UserSettings.normalizeTabOrder(_uiState.value.settings.editorTabOrder).toMutableList()
+        val index = currentOrder.indexOf(tab)
+        if (index == -1) return
+        val targetIndex = (index + delta).coerceIn(0, currentOrder.lastIndex)
+        if (targetIndex == index) return
+        currentOrder.removeAt(index)
+        currentOrder.add(targetIndex, tab)
+        updateSettings { it.copy(editorTabOrder = currentOrder) }
+    }
+
+    fun reorderEditorTabs(orderedTabs: List<EditorTab>) {
+        updateSettings { it.copy(editorTabOrder = UserSettings.normalizeTabOrder(orderedTabs)) }
+    }
+
+    fun resetEditorTabOrder() {
+        val lang = _uiState.value.settings.appLanguage
+        updateSettings { it.copy(editorTabOrder = UserSettings.DEFAULT_EDITOR_TAB_ORDER) }
+        _uiState.update { it.copy(statusMessage = AppStrings.statusTabOrderReset(lang)) }
+    }
+
+    fun resetAllSettingsToDefaults() {
+        val defaults = UserSettings()
+        persistSettings(defaults)
+        _uiState.update {
+            it.copy(
+                settings = defaults,
+                cropGridStyle = defaults.defaultCropGridStyle,
+                statusMessage = AppStrings.statusSettingsReset(defaults.appLanguage)
+            )
+        }
     }
 
     fun checkForUpdates(openDialog: Boolean = true) {
@@ -619,7 +678,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 hsl = HslState(),
                 transform = TransformState(),
                 selectedCropRatio = CropAspectRatio.FREE,
+                isCropRatioInverted = false,
                 pendingCropRect = CropRect(),
+                pendingStraightenDegrees = 0f,
                 activeFrame = FrameStyle.NONE,
                 hasRetouchEdits = false,
                 isEraser = false,
@@ -713,7 +774,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 hsl = previous.hsl,
                 transform = previous.transform,
                 selectedCropRatio = CropAspectRatio.FREE,
+                isCropRatioInverted = false,
                 pendingCropRect = CropRect(),
+                pendingStraightenDegrees = 0f,
                 activeFrame = previous.activeFrame,
                 hasRetouchEdits = previous.hasRetouchEdits,
                 canUndo = undoStack.isNotEmpty(),
@@ -765,7 +828,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 hsl = next.hsl,
                 transform = next.transform,
                 selectedCropRatio = CropAspectRatio.FREE,
+                isCropRatioInverted = false,
                 pendingCropRect = CropRect(),
+                pendingStraightenDegrees = 0f,
                 activeFrame = next.activeFrame,
                 hasRetouchEdits = next.hasRetouchEdits,
                 canUndo = true,
@@ -1346,6 +1411,11 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         applyTransformInternal { it.copy(rotationDegrees = (it.rotationDegrees + 90) % 360) }
     }
 
+    fun rotateCounterClockwise() {
+        continuousEditSnapshotted = false
+        applyTransformInternal { it.copy(rotationDegrees = (it.rotationDegrees + 270) % 360) }
+    }
+
     fun flipHorizontal() {
         continuousEditSnapshotted = false
         applyTransformInternal { it.copy(flipHorizontal = !it.flipHorizontal) }
@@ -1363,17 +1433,60 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
 
     fun selectCropRatio(ratio: CropAspectRatio) {
         val working = _uiState.value.workingBitmap
+        val resetInverted = false
         val fitted = if (working != null) {
-            CropRect.fittedForAspectRatio(working.width, working.height, ratio)
+            CropRect.fittedForAspectRatio(
+                bitmapWidth = working.width,
+                bitmapHeight = working.height,
+                aspectRatio = ratio,
+                invertOrientation = resetInverted
+            )
         } else {
             CropRect()
         }
         _uiState.update {
             it.copy(
                 selectedCropRatio = ratio,
+                isCropRatioInverted = resetInverted,
                 pendingCropRect = fitted
             )
         }
+    }
+
+    fun swapCropRatioOrientation() {
+        val state = _uiState.value
+        val working = state.workingBitmap
+        if (state.selectedCropRatio == CropAspectRatio.FREE) return
+        val nextInverted = !state.isCropRatioInverted
+        val fitted = if (working != null) {
+            CropRect.fittedForAspectRatio(
+                bitmapWidth = working.width,
+                bitmapHeight = working.height,
+                aspectRatio = state.selectedCropRatio,
+                invertOrientation = nextInverted
+            )
+        } else {
+            CropRect()
+        }
+        _uiState.update {
+            it.copy(
+                isCropRatioInverted = nextInverted,
+                pendingCropRect = fitted
+            )
+        }
+    }
+
+    fun setPendingStraighten(degrees: Float) {
+        val clamped = degrees.coerceIn(-45f, 45f)
+        val snapped = if (kotlin.math.abs(clamped) < 0.6f) 0f else clamped
+        _uiState.update { it.copy(pendingStraightenDegrees = snapped) }
+    }
+
+    fun cycleCropGridStyle() {
+        val styles = CropGridStyle.values()
+        val current = _uiState.value.cropGridStyle
+        val next = styles[(current.ordinal + 1) % styles.size]
+        _uiState.update { it.copy(cropGridStyle = next) }
     }
 
     fun updatePendingCropRect(rect: CropRect) {
@@ -1384,7 +1497,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         _uiState.update {
             it.copy(
                 selectedCropRatio = CropAspectRatio.FREE,
-                pendingCropRect = CropRect()
+                isCropRatioInverted = false,
+                pendingCropRect = CropRect(),
+                pendingStraightenDegrees = 0f
             )
         }
     }
@@ -1395,7 +1510,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             bitmapMutex.withLock {
                 val cropRect = _uiState.value.pendingCropRect
-                if (cropRect.isFull) return@withLock
+                val straighten = _uiState.value.pendingStraightenDegrees
+                if (cropRect.isFull && kotlin.math.abs(straighten) < 0.1f) return@withLock
                 val original = _uiState.value.originalBitmap ?: return@withLock
                 val working = _uiState.value.workingBitmap ?: return@withLock
                 val lang = _uiState.value.settings.appLanguage
@@ -1403,8 +1519,8 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                 _uiState.update { it.copy(isProcessing = true) }
 
                 val (croppedOrig, croppedWork) = withContext(Dispatchers.Default) {
-                    val o = BitmapProcessor.cropBitmap(original, cropRect)
-                    val w = BitmapProcessor.cropBitmap(working, cropRect)
+                    val o = BitmapProcessor.cropAndStraightenBitmap(original, cropRect, straighten)
+                    val w = BitmapProcessor.cropAndStraightenBitmap(working, cropRect, straighten)
                     o to w
                 }
 
@@ -1414,7 +1530,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                         workingBitmap = croppedWork,
                         transform = TransformState(),
                         selectedCropRatio = CropAspectRatio.FREE,
+                        isCropRatioInverted = false,
                         pendingCropRect = CropRect(),
+                        pendingStraightenDegrees = 0f,
                         isProcessing = false,
                         statusMessage = AppStrings.statusCropApplied(lang)
                     )
@@ -1473,7 +1591,9 @@ class PhotoEditorViewModel(application: Application) : AndroidViewModel(applicat
                         workingBitmap = transformedWorking,
                         transform = TransformState(),
                         selectedCropRatio = CropAspectRatio.FREE,
+                        isCropRatioInverted = false,
                         pendingCropRect = CropRect(),
+                        pendingStraightenDegrees = 0f,
                         isProcessing = false,
                         statusMessage = AppStrings.statusTransformApplied(lang)
                     )

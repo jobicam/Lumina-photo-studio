@@ -67,6 +67,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VerticalSplit
@@ -117,11 +118,14 @@ import com.example.ui.components.HslPanel
 import com.example.ui.components.LiveHistogramHud
 import com.example.ui.components.PhotoCanvas
 import com.example.ui.components.PhotoPickerModal
+import com.example.ui.components.ReorderTabsModal
 import com.example.ui.components.RetouchPanel
 import com.example.ui.components.SaveOptionsModal
 import com.example.ui.components.SaveSuccessModal
 import com.example.ui.components.StudioMotion
 import com.example.ui.components.bounceClickable
+import com.example.ui.components.editorTabIcon
+import com.example.ui.components.editorTabLabel
 import com.example.ui.components.pressBounce
 import com.example.util.AppStrings
 import com.example.ui.theme.AccentAmber
@@ -150,6 +154,10 @@ fun PhotoEditorScreen(
     var showCamera by remember { mutableStateOf(false) }
     var showWhatsNew by remember { mutableStateOf(false) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
+    var showReorderTabsModal by remember { mutableStateOf(false) }
+    val orderedTabs = remember(uiState.settings.editorTabOrder) {
+        com.example.model.UserSettings.normalizeTabOrder(uiState.settings.editorTabOrder)
+    }
 
     val importPresetLutLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -203,6 +211,7 @@ fun PhotoEditorScreen(
                 onOpenSettings = { viewModel.navigateTo(AppScreen.SETTINGS) },
                 onOpenPicker = { showPhotoPicker = true },
                 onOpenCamera = { showCamera = true },
+                onOpenReorderTabs = { showReorderTabsModal = true },
                 onOpenWhatsNew = { showWhatsNew = true },
                 onCheckUpdates = { viewModel.checkForUpdates(openDialog = true) },
                 onUndo = { viewModel.undo() },
@@ -241,7 +250,8 @@ fun PhotoEditorScreen(
                     com.example.model.CropRect.effectiveRatio(
                         bitmapWidth = bmp.width,
                         bitmapHeight = bmp.height,
-                        aspectRatio = uiState.selectedCropRatio
+                        aspectRatio = uiState.selectedCropRatio,
+                        invertOrientation = uiState.isCropRatioInverted
                     )
                 }
 
@@ -270,6 +280,8 @@ fun PhotoEditorScreen(
                     isCropMode = isCropMode,
                     cropRect = uiState.pendingCropRect,
                     lockedCropRatio = lockedCropRatio,
+                    straightenDegrees = uiState.pendingStraightenDegrees,
+                    cropGridStyle = uiState.cropGridStyle,
                     isBlurFocusMode = isBlurFocusMode,
                     blurFocusX = uiState.adjustments.blurFocusX,
                     blurFocusY = uiState.adjustments.blurFocusY,
@@ -534,7 +546,7 @@ fun PhotoEditorScreen(
                     val drawerHeight by animateDpAsState(
                         targetValue = when (uiState.activeTab) {
                             EditorTab.CURVES, EditorTab.COLOR_GRADE -> 296.dp
-                            EditorTab.CROP -> 268.dp
+                            EditorTab.CROP -> 324.dp
                             EditorTab.RETOUCH -> 304.dp
                             EditorTab.ADJUST -> if (
                                 uiState.activeAdjustCategory == com.example.model.AdjustCategory.EFFECTS &&
@@ -557,7 +569,7 @@ fun PhotoEditorScreen(
                     AnimatedContent(
                         targetState = uiState.activeTab,
                         transitionSpec = {
-                            val toRight = targetState.ordinal > initialState.ordinal
+                            val toRight = orderedTabs.indexOf(targetState) > orderedTabs.indexOf(initialState)
                             val slideIn = slideInHorizontally(
                                 animationSpec = StudioMotion.SlideSpring
                             ) { width -> if (toRight) width / 8 else -width / 8 }
@@ -671,16 +683,24 @@ fun PhotoEditorScreen(
                             )
                             EditorTab.CROP -> CropPanel(
                                 onRotate = { viewModel.rotateClockwise() },
+                                onRotateLeft = { viewModel.rotateCounterClockwise() },
                                 onFlipH = { viewModel.flipHorizontal() },
                                 onFlipV = { viewModel.flipVertical() },
                                 selectedRatio = uiState.selectedCropRatio,
+                                isRatioInverted = uiState.isCropRatioInverted,
                                 cropRect = uiState.pendingCropRect,
+                                straightenDegrees = uiState.pendingStraightenDegrees,
+                                cropGridStyle = uiState.cropGridStyle,
                                 onSelectRatio = { viewModel.selectCropRatio(it) },
+                                onSwapRatioOrientation = { viewModel.swapCropRatioOrientation() },
+                                onStraightenChanged = { viewModel.setPendingStraighten(it) },
+                                onCycleGridStyle = { viewModel.cycleCropGridStyle() },
                                 onApplyCrop = { viewModel.applyPendingCrop() },
                                 onResetCrop = { viewModel.resetPendingCropRect() },
                                 activeFrame = uiState.activeFrame,
                                 onSelectFrame = { viewModel.selectFrame(it) },
-                                lang = lang
+                                lang = lang,
+                                hapticFeedback = hapticsEnabled
                             )
                         }
                     }
@@ -692,22 +712,25 @@ fun PhotoEditorScreen(
                             .background(StudioBorder.copy(alpha = 0.6f))
                     )
 
-                    // Main Category Tab Row (Scrollable so all 7 tabs stay crisp with active-edit indicators)
+                    // Main Category Tab Row (Uses customizable user tab order + active-edit indicators)
+                    val selectedTabIndex = orderedTabs.indexOf(uiState.activeTab).coerceAtLeast(0)
                     ScrollableTabRow(
-                        selectedTabIndex = uiState.activeTab.ordinal,
+                        selectedTabIndex = selectedTabIndex,
                         containerColor = StudioSurfaceVariant,
                         contentColor = AccentCyan,
                         edgePadding = 8.dp,
                         indicator = { tabPositions ->
-                            TabRowDefaults.SecondaryIndicator(
-                                Modifier.tabIndicatorOffset(tabPositions[uiState.activeTab.ordinal]),
-                                color = AccentCyan,
-                                height = 3.dp
-                            )
+                            if (selectedTabIndex in tabPositions.indices) {
+                                TabRowDefaults.SecondaryIndicator(
+                                    Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                                    color = AccentCyan,
+                                    height = 3.dp
+                                )
+                            }
                         },
                         divider = {}
                     ) {
-                        EditorTab.values().forEach { tab ->
+                        orderedTabs.forEach { tab ->
                             val isSelected = uiState.activeTab == tab
                             val hasTabEdits = when (tab) {
                                 EditorTab.FILTERS -> uiState.activePreset != com.example.model.FilterPresets.NONE || uiState.activeLut != null
@@ -716,7 +739,9 @@ fun PhotoEditorScreen(
                                 EditorTab.COLOR_GRADE -> !uiState.colorGrade.isDefault
                                 EditorTab.CURVES -> !uiState.curves.isDefault
                                 EditorTab.HSL -> !uiState.hsl.isDefault
-                                EditorTab.CROP -> !uiState.pendingCropRect.isFull || uiState.activeFrame != com.example.model.FrameStyle.NONE
+                                EditorTab.CROP -> !uiState.pendingCropRect.isFull ||
+                                    kotlin.math.abs(uiState.pendingStraightenDegrees) >= 0.1f ||
+                                    uiState.activeFrame != com.example.model.FrameStyle.NONE
                             }
                             val tabInteraction = remember { MutableInteractionSource() }
                             val iconScale by animateFloatAsState(
@@ -729,24 +754,8 @@ fun PhotoEditorScreen(
                                 animationSpec = tween(180),
                                 label = "tab_tint_${tab.name}"
                             )
-                            val icon = when (tab) {
-                                EditorTab.FILTERS -> Icons.Default.Filter
-                                EditorTab.RETOUCH -> Icons.Default.AutoFixHigh
-                                EditorTab.ADJUST -> Icons.Default.Tune
-                                EditorTab.COLOR_GRADE -> Icons.Default.Palette
-                                EditorTab.CURVES -> Icons.AutoMirrored.Filled.ShowChart
-                                EditorTab.HSL -> Icons.Default.Tune
-                                EditorTab.CROP -> Icons.Default.Crop
-                            }
-                            val tabLabel = when (tab) {
-                                EditorTab.FILTERS -> com.example.util.AppStrings.tabFiltersLabel(lang)
-                                EditorTab.RETOUCH -> com.example.util.AppStrings.tabRetouchLabel(lang)
-                                EditorTab.ADJUST -> com.example.util.AppStrings.tabAdjustLabel(lang)
-                                EditorTab.COLOR_GRADE -> com.example.util.AppStrings.tabColorGradeLabel(lang)
-                                EditorTab.CURVES -> com.example.util.AppStrings.tabCurvesLabel(lang)
-                                EditorTab.HSL -> com.example.util.AppStrings.tabHslLabel(lang)
-                                EditorTab.CROP -> com.example.util.AppStrings.tabCropLabel(lang)
-                            }
+                            val icon = editorTabIcon(tab)
+                            val tabLabel = editorTabLabel(tab, lang)
 
                             Tab(
                                 selected = isSelected,
@@ -806,6 +815,17 @@ fun PhotoEditorScreen(
                     viewModel.saveCurrentAsCustomPreset(presetName)
                 },
                 onDismiss = { showSavePresetDialog = false }
+            )
+        }
+
+        // In-Editor Reorder Tabs Modal
+        if (showReorderTabsModal) {
+            ReorderTabsModal(
+                orderedTabs = orderedTabs,
+                lang = lang,
+                onMoveTab = { tab, delta -> viewModel.moveEditorTab(tab, delta) },
+                onResetOrder = { viewModel.resetEditorTabOrder() },
+                onDismiss = { showReorderTabsModal = false }
             )
         }
 
@@ -912,6 +932,7 @@ private fun TopEditorBar(
     onOpenSettings: () -> Unit,
     onOpenPicker: () -> Unit,
     onOpenCamera: () -> Unit,
+    onOpenReorderTabs: () -> Unit,
     onOpenWhatsNew: () -> Unit,
     onCheckUpdates: () -> Unit,
     onUndo: () -> Unit,
@@ -1117,6 +1138,22 @@ private fun TopEditorBar(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(AppStrings.reorderTabsTitle(lang), color = TextPrimary, fontSize = 13.sp) },
+                        onClick = {
+                            showMenu = false
+                            onOpenReorderTabs()
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,
+                                contentDescription = null,
+                                tint = AccentCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        modifier = Modifier.testTag("editor_reorder_tabs_menu_item")
                     )
                     DropdownMenuItem(
                         text = { Text(AppStrings.tabSettings(lang), color = TextPrimary, fontSize = 13.sp) },
